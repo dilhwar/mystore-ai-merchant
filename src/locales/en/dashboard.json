@@ -1,0 +1,20 @@
+{
+  "welcome": "Welcome",
+  "dashboard": "Dashboard",
+  "overview": "Overview",
+  "total_sales": "Total Sales",
+  "total_orders": "Total Orders",
+  "total_customers": "Total Customers",
+  "total_products": "Total Products",
+  "sales": "Sales",
+  "orders": "Orders",
+  "customers": "Customers",
+  "products": "Products",
+  "recent_orders": "Recent Orders",
+  "view_all": "View All",
+  "loading": "Loading...",
+  "error": "Error",
+  "retry": "Retry",
+  "no_data": "No data available",
+  "currency": "SAR"
+}

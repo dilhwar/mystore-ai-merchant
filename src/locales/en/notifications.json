@@ -1,0 +1,14 @@
+{
+  "notifications": "Notifications",
+  "no_notifications": "No notifications yet",
+  "mark_all_read": "Mark all as read",
+  "all_marked_read": "All notifications marked as read",
+  "load_error": "Failed to load notifications",
+  "just_now": "Just now",
+  "minutes_ago": "{{count}} minutes ago",
+  "minutes_ago_plural": "{{count}} minutes ago",
+  "hours_ago": "{{count}} hours ago",
+  "hours_ago_plural": "{{count}} hours ago",
+  "days_ago": "{{count}} days ago",
+  "days_ago_plural": "{{count}} days ago"
+}

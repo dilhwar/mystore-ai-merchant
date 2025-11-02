@@ -1,0 +1,14 @@
+{
+  "categories": "الفئات",
+  "manage_categories": "إدارة فئات المنتجات",
+  "categories_coming_soon": "إدارة الفئات قريباً",
+  "loading_categories": "جاري تحميل الفئات...",
+  "no_categories_found": "لا توجد فئات",
+  "error": "خطأ",
+  "failed_to_load_categories": "فشل تحميل الفئات. يرجى المحاولة مرة أخرى.",
+  "products_count": "{{count}} منتج",
+  "products_count_plural": "{{count}} منتجات",
+  "subcategories": "الفئات الفرعية",
+  "subcategories_count": "{{count}} فئة فرعية",
+  "subcategories_count_plural": "{{count}} فئات فرعية"
+}

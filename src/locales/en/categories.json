@@ -1,0 +1,14 @@
+{
+  "categories": "Categories",
+  "manage_categories": "Manage product categories",
+  "categories_coming_soon": "Categories management coming soon",
+  "loading_categories": "Loading categories...",
+  "no_categories_found": "No categories found",
+  "error": "Error",
+  "failed_to_load_categories": "Failed to load categories. Please try again.",
+  "products_count": "{{count}} products",
+  "products_count_plural": "{{count}} products",
+  "subcategories": "Subcategories",
+  "subcategories_count": "{{count}} subcategories",
+  "subcategories_count_plural": "{{count}} subcategories"
+}

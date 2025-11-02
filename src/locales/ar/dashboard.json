@@ -1,0 +1,20 @@
+{
+  "welcome": "مرحباً",
+  "dashboard": "لوحة التحكم",
+  "overview": "نظرة عامة",
+  "total_sales": "إجمالي المبيعات",
+  "total_orders": "إجمالي الطلبات",
+  "total_customers": "إجمالي العملاء",
+  "total_products": "إجمالي المنتجات",
+  "sales": "المبيعات",
+  "orders": "الطلبات",
+  "customers": "العملاء",
+  "products": "المنتجات",
+  "recent_orders": "الطلبات الأخيرة",
+  "view_all": "عرض الكل",
+  "loading": "جاري التحميل...",
+  "error": "خطأ",
+  "retry": "إعادة المحاولة",
+  "no_data": "لا توجد بيانات",
+  "currency": "ر.س"
+}

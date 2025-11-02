@@ -1,0 +1,14 @@
+{
+  "notifications": "الإشعارات",
+  "no_notifications": "لا توجد إشعارات بعد",
+  "mark_all_read": "تحديد الكل كمقروء",
+  "all_marked_read": "تم تحديد جميع الإشعارات كمقروءة",
+  "load_error": "فشل تحميل الإشعارات",
+  "just_now": "الآن",
+  "minutes_ago": "منذ {{count}} دقيقة",
+  "minutes_ago_plural": "منذ {{count}} دقائق",
+  "hours_ago": "منذ {{count}} ساعة",
+  "hours_ago_plural": "منذ {{count}} ساعات",
+  "days_ago": "منذ {{count}} يوم",
+  "days_ago_plural": "منذ {{count}} أيام"
+}
