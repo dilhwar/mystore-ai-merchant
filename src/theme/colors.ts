@@ -32,6 +32,8 @@ export const lightColors = {
 
   // Overlay
   overlay: 'rgba(0, 0, 0, 0.5)',
+  overlayLight: 'rgba(0, 0, 0, 0.3)',
+  overlayStrong: 'rgba(0, 0, 0, 0.7)',
 
   // Card
   card: '#FFFFFF',
@@ -40,6 +42,16 @@ export const lightColors = {
   // Opacity variants
   inputBackground: 'rgba(0, 0, 0, 0.05)',
   cardBackgroundSecondary: 'rgba(0, 0, 0, 0.03)',
+
+  // Primary opacity variants
+  primary05: 'rgba(0, 122, 255, 0.05)',
+  primary10: 'rgba(0, 122, 255, 0.1)',
+  primary15: 'rgba(0, 122, 255, 0.15)',
+  primary20: 'rgba(0, 122, 255, 0.2)',
+
+  // White/Black constants
+  white: '#FFFFFF',
+  black: '#000000',
 };
 
 // Dark Mode Colors
@@ -76,6 +88,8 @@ export const darkColors = {
 
   // Overlay
   overlay: 'rgba(0, 0, 0, 0.7)',
+  overlayLight: 'rgba(0, 0, 0, 0.5)',
+  overlayStrong: 'rgba(0, 0, 0, 0.85)',
 
   // Card
   card: '#1A1A1A',
@@ -84,6 +98,16 @@ export const darkColors = {
   // Opacity variants
   inputBackground: 'rgba(255, 255, 255, 0.08)',
   cardBackgroundSecondary: 'rgba(255, 255, 255, 0.06)',
+
+  // Primary opacity variants
+  primary05: 'rgba(10, 132, 255, 0.05)',
+  primary10: 'rgba(10, 132, 255, 0.1)',
+  primary15: 'rgba(10, 132, 255, 0.15)',
+  primary20: 'rgba(10, 132, 255, 0.2)',
+
+  // White/Black constants
+  white: '#FFFFFF',
+  black: '#000000',
 };
 
 export type Colors = typeof lightColors;

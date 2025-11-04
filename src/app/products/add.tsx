@@ -27,20 +27,21 @@ import {
   Package,
   Tag,
   FileText,
-  ChevronRight
 } from 'lucide-react-native';
-import { createProduct, CreateProductData } from '@/services/products.service';
+import { createProduct } from '@/services/products.service';
 import { getCategories, Category } from '@/services/categories.service';
 import { generateAllContentWithImage } from '@/services/ai.service';
 import { getFieldName, getTranslatedName } from '@/utils/language';
+import { CURRENCIES, getCurrencyByCode } from '@/constants/currencies';
+import { getStoreSettings } from '@/services/store-settings.service';
 
 export default function AddProductScreen() {
   const { t, i18n } = useTranslation('products');
   const { colors } = useTheme();
   const router = useRouter();
 
-  // Get store languages from authStore
-  const { storeLanguages, defaultLanguage } = useAuthStore();
+  // Get store settings from authStore (dynamic)
+  const { storeLanguages, defaultLanguage, storeCurrency, setStoreSettings } = useAuthStore();
 
   const [loading, setLoading] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
@@ -51,15 +52,40 @@ export default function AddProductScreen() {
     price: '',
     quantity: '0',
     categoryId: '',
+    currency: storeCurrency, // Use store currency (dynamic)
     isActive: true,
   });
-  const [image, setImage] = useState<any>(null);
+  const [images, setImages] = useState<any[]>([]); // Support multiple images (up to 10)
+  const [selectedAIImageIndex, setSelectedAIImageIndex] = useState<number>(0); // Which image to use for AI
 
   const currentLanguage = i18n.language;
 
+  // Get currency info for display
+  const currencyInfo = getCurrencyByCode(storeCurrency);
+
   useEffect(() => {
-    loadCategories();
+    loadInitialData();
   }, []);
+
+  useEffect(() => {
+    // Update currency when storeCurrency changes
+    setFormData((prev) => ({
+      ...prev,
+      currency: storeCurrency,
+    }));
+  }, [storeCurrency]);
+
+  const loadInitialData = async () => {
+    try {
+      // Load categories
+      await loadCategories();
+
+      // Load and update store settings
+      await loadStoreSettings();
+    } catch (error: any) {
+      console.error('Load initial data error:', error.message);
+    }
+  };
 
   const loadCategories = async () => {
     try {
@@ -67,6 +93,25 @@ export default function AddProductScreen() {
       setCategories(data);
     } catch (error: any) {
       console.error('Load categories error:', error.message);
+    }
+  };
+
+  const loadStoreSettings = async () => {
+    try {
+      const storeData: any = await getStoreSettings();
+
+      // Extract languages and currency from store settings
+      const languages = (storeData.settings?.languages as string[]) || [defaultLanguage];
+      const defaultLang = languages[0] || defaultLanguage;
+      const currency = storeData.settings?.currency || storeCurrency;
+
+      // Update authStore with real store settings
+      setStoreSettings(languages, defaultLang, currency);
+
+      console.log('✅ Store settings loaded:', { languages, defaultLang, currency });
+    } catch (error: any) {
+      console.error('Load store settings error:', error.message);
+      // Don't fail the page if settings can't be loaded
     }
   };
 
@@ -83,25 +128,44 @@ export default function AddProductScreen() {
     return formData[fieldName] || '';
   };
 
-  // اختيار صورة
-  const pickImage = async () => {
+  // اختيار صور متعددة (حتى 10)
+  const pickImages = async () => {
+    if (images.length >= 10) {
+      Alert.alert(t('error'), t('max_images_reached'));
+      return;
+    }
+
     haptics.light();
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
+      allowsMultipleSelection: true,
       quality: 0.8,
+      selectionLimit: 10 - images.length,
     });
 
-    if (!result.canceled && result.assets[0]) {
-      setImage(result.assets[0]);
+    if (!result.canceled && result.assets.length > 0) {
+      const newImages = [...images, ...result.assets].slice(0, 10);
+      setImages(newImages);
       haptics.success();
+    }
+  };
+
+  // حذف صورة
+  const removeImage = (index: number) => {
+    haptics.light();
+    const newImages = images.filter((_, i) => i !== index);
+    setImages(newImages);
+    // If removed image was selected for AI, reset to first image
+    if (selectedAIImageIndex === index) {
+      setSelectedAIImageIndex(0);
+    } else if (selectedAIImageIndex > index) {
+      setSelectedAIImageIndex(selectedAIImageIndex - 1);
     }
   };
 
   // توليد المحتوى بالكامل باستخدام AI
   const generateWithAI = async () => {
-    if (!image) {
+    if (images.length === 0) {
       Alert.alert(t('error'), t('image_required_for_ai'));
       return;
     }
@@ -109,9 +173,12 @@ export default function AddProductScreen() {
     try {
       setAiLoading(true);
 
+      // استخدام الصورة المحددة للـ AI
+      const selectedImage = images[selectedAIImageIndex];
+
       // استدعاء AI لتوليد المحتوى بناءً على لغات المتجر
       const response = await generateAllContentWithImage({
-        imageUri: image.uri,
+        imageUri: selectedImage.uri,
         category: formData.categoryId || undefined,
         storeLanguages,
         dashboardLanguage: currentLanguage,
@@ -142,7 +209,7 @@ export default function AddProductScreen() {
 
   const handleSubmit = async () => {
     // Validation
-    if (!image) {
+    if (images.length === 0) {
       Alert.alert(t('error'), t('image_required'));
       return;
     }
@@ -159,24 +226,30 @@ export default function AddProductScreen() {
       return;
     }
 
+    if (!formData.currency) {
+      Alert.alert(t('error'), t('currency_required'));
+      return;
+    }
+
     try {
       setLoading(true);
 
-      // تحضير الصورة
-      const imageFile = {
-        uri: image.uri,
+      // تحضير الصور (تحويل إلى FormData format)
+      const imageFiles = images.map((img, index) => ({
+        uri: img.uri,
         type: 'image/jpeg',
-        name: 'product.jpg',
-      };
+        name: `product-${index}.jpg`,
+      }));
 
       // Build product data with dynamic language fields
       const productData: any = {
         price: parseFloat(formData.price),
+        currency: formData.currency,
         categoryId: formData.categoryId || undefined,
         quantity: parseInt(formData.quantity) || 0,
         isActive: formData.isActive,
         featured: false,
-        images: [imageFile],
+        images: imageFiles,
       };
 
       // Add language-specific fields
@@ -237,36 +310,76 @@ export default function AddProductScreen() {
             </Text>
           </View>
 
-          <TouchableOpacity
-            style={[styles.imagePicker, { backgroundColor: colors.background, borderColor: colors.border }]}
-            onPress={pickImage}
-            activeOpacity={0.7}
-          >
-            {image ? (
-              <View style={styles.imagePreviewContainer}>
-                <Image source={{ uri: image.uri }} style={styles.imagePreview} />
-                <View style={[styles.changeImageOverlay, { backgroundColor: 'rgba(0,0,0,0.5)' }]}>
-                  <ImagePlus size={24} color="#FFFFFF" strokeWidth={2} />
-                  <Text style={styles.changeImageText}>{t('change_image')}</Text>
+          {/* Images Grid */}
+          {images.length > 0 ? (
+            <View style={styles.imagesGrid}>
+              {images.map((img, index) => (
+                <View key={index} style={styles.imageGridItem}>
+                  <Image source={{ uri: img.uri }} style={styles.gridImage} />
+
+                  {/* AI Selection Radio */}
+                  <TouchableOpacity
+                    style={[styles.aiSelectBtn, { backgroundColor: selectedAIImageIndex === index ? '#8B5CF6' : 'rgba(0,0,0,0.5)' }]}
+                    onPress={() => {
+                      haptics.light();
+                      setSelectedAIImageIndex(index);
+                    }}
+                  >
+                    <Sparkles size={12} color="#FFFFFF" strokeWidth={2} />
+                  </TouchableOpacity>
+
+                  {/* Delete Button */}
+                  <TouchableOpacity
+                    style={[styles.deleteBtn, { backgroundColor: colors.error }]}
+                    onPress={() => removeImage(index)}
+                  >
+                    <Text style={styles.deleteBtnText}>×</Text>
+                  </TouchableOpacity>
+
+                  {/* Default Badge */}
+                  {index === 0 && (
+                    <View style={[styles.defaultBadge, { backgroundColor: colors.primary }]}>
+                      <Text style={styles.defaultBadgeText}>{t('main')}</Text>
+                    </View>
+                  )}
                 </View>
-              </View>
-            ) : (
+              ))}
+
+              {/* Add More Button */}
+              {images.length < 10 && (
+                <TouchableOpacity
+                  style={[styles.addMoreBtn, { backgroundColor: colors.background, borderColor: colors.border }]}
+                  onPress={pickImages}
+                >
+                  <ImagePlus size={32} color={colors.primary} strokeWidth={1.5} />
+                  <Text style={[styles.addMoreText, { color: colors.textSecondary }]}>
+                    {images.length}/10
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          ) : (
+            <TouchableOpacity
+              style={[styles.imagePicker, { backgroundColor: colors.background, borderColor: colors.border }]}
+              onPress={pickImages}
+              activeOpacity={0.7}
+            >
               <View style={styles.imagePickerContent}>
                 <View style={[styles.iconContainer, { backgroundColor: `${colors.primary}15` }]}>
                   <ImagePlus size={32} color={colors.primary} strokeWidth={1.5} />
                 </View>
                 <Text style={[styles.imagePickerText, { color: colors.text }]}>
-                  {t('tap_to_add_image')}
+                  {t('tap_to_add_images')}
                 </Text>
                 <Text style={[styles.imagePickerHint, { color: colors.textSecondary }]}>
-                  {t('recommended_size')}
+                  {t('up_to_10_images')}
                 </Text>
               </View>
-            )}
-          </TouchableOpacity>
+            </TouchableOpacity>
+          )}
 
           {/* AI Button */}
-          {image && (
+          {images.length > 0 && (
             <TouchableOpacity
               style={[styles.aiButton, { backgroundColor: '#8B5CF6' }]}
               onPress={generateWithAI}
@@ -363,6 +476,30 @@ export default function AddProductScreen() {
             <DollarSign size={20} color={colors.primary} strokeWidth={2} />
             <Text style={[styles.sectionTitle, { color: colors.text }]}>
               {t('pricing_inventory')}
+            </Text>
+          </View>
+
+          {/* Currency Display (Read-only from store settings) */}
+          <View style={styles.inputGroup}>
+            <Text style={[styles.label, { color: colors.text }]}>
+              {t('currency')} <Text style={styles.required}>*</Text>
+            </Text>
+            <View style={[styles.currencyDisplay, { backgroundColor: colors.background, borderColor: colors.border }]}>
+              <Text style={[styles.currencyFlag, { fontSize: 20 }]}>{currencyInfo?.flag || '💰'}</Text>
+              <View style={styles.currencyInfo}>
+                <Text style={[styles.currencyCode, { color: colors.text, fontSize: 16, fontWeight: '700' }]}>
+                  {currencyInfo?.code || storeCurrency}
+                </Text>
+                <Text style={[styles.currencyName, { color: colors.textSecondary, fontSize: 12 }]}>
+                  {currentLanguage === 'ar' ? currencyInfo?.nativeName : currencyInfo?.name}
+                </Text>
+              </View>
+              <Text style={[styles.currencySymbol, { color: colors.primary, fontSize: 18, fontWeight: '600' }]}>
+                {currencyInfo?.symbol || storeCurrency}
+              </Text>
+            </View>
+            <Text style={[styles.helperText, { color: colors.textTertiary }]}>
+              {t('currency_from_store_settings')}
             </Text>
           </View>
 
@@ -728,5 +865,110 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '600',
+  },
+
+  // Images Grid
+  imagesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.s,
+  },
+  imageGridItem: {
+    width: '31%', // ~1/3 with gaps
+    aspectRatio: 1,
+    borderRadius: design.radius.md,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  gridImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  aiSelectBtn: {
+    position: 'absolute',
+    top: spacing.xs,
+    left: spacing.xs,
+    width: 28,
+    height: 28,
+    borderRadius: design.radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deleteBtn: {
+    position: 'absolute',
+    top: spacing.xs,
+    right: spacing.xs,
+    width: 28,
+    height: 28,
+    borderRadius: design.radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deleteBtnText: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '600',
+    lineHeight: 24,
+  },
+  defaultBadge: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingVertical: 4,
+    alignItems: 'center',
+  },
+  defaultBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  addMoreBtn: {
+    width: '31%', // ~1/3 with gaps
+    aspectRatio: 1,
+    borderRadius: design.radius.md,
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+  },
+  addMoreText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+
+  // Currency Display (Read-only)
+  currencyDisplay: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: spacing.m,
+    borderRadius: design.radius.md,
+    borderWidth: 1,
+    gap: spacing.m,
+  },
+  currencyInfo: {
+    flex: 1,
+  },
+  currencyFlag: {
+    fontSize: 20,
+  },
+  currencyCode: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  currencyName: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  currencySymbol: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  helperText: {
+    fontSize: 11,
+    marginTop: spacing.xs,
+    fontStyle: 'italic',
   },
 });

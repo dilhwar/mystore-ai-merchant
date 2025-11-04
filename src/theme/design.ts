@@ -11,6 +11,7 @@ export const design = {
     md: 12,
     lg: 16,
     xl: 20,
+    xxl: 24,
     full: 9999,
   },
 
@@ -60,6 +61,7 @@ export const design = {
     md: 24,
     lg: 32,
     xl: 40,
+    xxl: 48,
   },
 
   // Button Sizes
@@ -81,6 +83,25 @@ export const design = {
     },
   },
 
+  // Input Sizes
+  input: {
+    sm: {
+      height: 40,
+      paddingHorizontal: 12,
+      fontSize: 14,
+    },
+    md: {
+      height: 48,
+      paddingHorizontal: 16,
+      fontSize: 15,
+    },
+    lg: {
+      height: 56,
+      paddingHorizontal: 20,
+      fontSize: 16,
+    },
+  },
+
   // Card Styles
   card: {
     default: {
@@ -98,6 +119,37 @@ export const design = {
       padding: 20,
       borderWidth: 0,
     },
+  },
+
+  // Badge Sizes
+  badge: {
+    sm: {
+      paddingHorizontal: 8,
+      paddingVertical: 2,
+      fontSize: 11,
+      borderRadius: 4,
+    },
+    md: {
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      fontSize: 12,
+      borderRadius: 6,
+    },
+    lg: {
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      fontSize: 13,
+      borderRadius: 8,
+    },
+  },
+
+  // Avatar Sizes
+  avatar: {
+    sm: 32,
+    md: 40,
+    lg: 56,
+    xl: 72,
+    xxl: 96,
   },
 
   // Typography

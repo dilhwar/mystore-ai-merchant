@@ -5,23 +5,26 @@ import {
   StyleSheet,
   ScrollView,
   RefreshControl,
-  ActivityIndicator,
   Alert,
   Image,
   Dimensions,
   TouchableOpacity,
-  TextInput,
-  Modal,
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/store/themeStore';
 import { useRouter } from 'expo-router';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { SearchBar } from '@/components/ui/SearchBar';
+import { Badge } from '@/components/ui/Badge';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { FAB } from '@/components/ui/FAB';
+import { BottomSheet } from '@/components/ui/BottomSheet';
+import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
 import { spacing } from '@/theme/spacing';
 import { design } from '@/theme/design';
 import { formatCurrency } from '@/utils/currency';
 import { haptics } from '@/utils/haptics';
-import { Package, Search, Plus, Edit2, Trash2, MoreVertical } from 'lucide-react-native';
+import { Package, Plus, Edit2, Trash2, MoreVertical } from 'lucide-react-native';
 import {
   getProducts,
   Product,
@@ -190,18 +193,6 @@ export default function ProductsScreen() {
               </Text>
             </View>
           )}
-
-          {/* Menu Button (3 dots) */}
-          <TouchableOpacity
-            style={[styles.menuButton, { backgroundColor: colors.surface }]}
-            onPress={(e) => {
-              e.stopPropagation();
-              handleMenuPress(product);
-            }}
-            activeOpacity={0.7}
-          >
-            <MoreVertical size={18} color={colors.text} strokeWidth={2} />
-          </TouchableOpacity>
         </View>
 
         {/* Product Info */}
@@ -230,54 +221,40 @@ export default function ProductsScreen() {
             )}
           </View>
 
-          {/* Stock Status */}
-          <View
-            style={[
-              styles.stockBadge,
-              {
-                backgroundColor:
-                  stockStatusKey === 'in_stock'
-                    ? '#10B98120'
-                    : stockStatusKey === 'low_stock'
-                    ? '#F59E0B20'
-                    : '#EF444420',
-              },
-            ]}
-          >
-            <Text
-              style={[
-                styles.stockText,
-                {
-                  color:
-                    stockStatusKey === 'in_stock'
-                      ? '#10B981'
-                      : stockStatusKey === 'low_stock'
-                      ? '#F59E0B'
-                      : '#EF4444',
-                },
-              ]}
+          {/* Stock Status & Menu Button Row */}
+          <View style={styles.stockActionsRow}>
+            <Badge
+              text={`${t(stockStatusKey)} (${product.quantity})`}
+              variant={
+                stockStatusKey === 'in_stock'
+                  ? 'success'
+                  : stockStatusKey === 'low_stock'
+                  ? 'warning'
+                  : 'error'
+              }
+              size="sm"
+            />
+
+            <TouchableOpacity
+              style={[styles.menuBtn, { backgroundColor: colors.surfaceSecondary }]}
+              onPress={(e) => {
+                e.stopPropagation();
+                handleMenuPress(product);
+              }}
+              activeOpacity={0.7}
             >
-              {t(stockStatusKey)} ({product.quantity})
-            </Text>
+              <MoreVertical size={16} color={colors.text} strokeWidth={2} />
+            </TouchableOpacity>
           </View>
         </View>
       </TouchableOpacity>
     );
   };
 
-  if (loading) {
-    return (
-      <View style={[styles.container, styles.centerContent, { backgroundColor: colors.background }]}>
-        <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
-          {t('loading_products')}
-        </Text>
-      </View>
-    );
-  }
-
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <LoadingOverlay visible={loading} message={t('loading_products')} />
+
       {/* Header */}
       <PageHeader
         title={t('products')}
@@ -285,20 +262,13 @@ export default function ProductsScreen() {
       />
 
       {/* Search Bar */}
-      <View style={[styles.searchContainer, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        <Search size={20} color={colors.textSecondary} strokeWidth={2} />
-        <TextInput
-          style={[styles.searchInput, { color: colors.text }]}
-          placeholder={t('search_products')}
-          placeholderTextColor={colors.textSecondary}
+      <View style={styles.searchWrapper}>
+        <SearchBar
           value={searchQuery}
           onChangeText={setSearchQuery}
+          onClear={() => setSearchQuery('')}
+          placeholder={t('search_products')}
         />
-        {searchQuery.length > 0 && (
-          <TouchableOpacity onPress={() => setSearchQuery('')} activeOpacity={0.7}>
-            <Text style={[styles.clearButton, { color: colors.textSecondary }]}>✕</Text>
-          </TouchableOpacity>
-        )}
       </View>
 
       {/* Products Grid */}
@@ -315,17 +285,11 @@ export default function ProductsScreen() {
         }
       >
         {filteredProducts.length === 0 ? (
-          <View style={[styles.emptyState, { backgroundColor: colors.surface }]}>
-            <View style={[styles.emptyIconContainer, { backgroundColor: `${colors.primary}15` }]}>
-              <Package size={48} color={colors.primary} strokeWidth={1.5} />
-            </View>
-            <Text style={[styles.emptyStateTitle, { color: colors.text }]}>
-              {searchQuery ? t('no_results_found') : t('no_products_found')}
-            </Text>
-            <Text style={[styles.emptyStateText, { color: colors.textSecondary }]}>
-              {searchQuery ? t('try_different_search') : t('add_first_product')}
-            </Text>
-          </View>
+          <EmptyState
+            icon={<Package size={48} color={colors.primary} strokeWidth={1.5} />}
+            title={searchQuery ? t('no_results_found') : t('no_products_found')}
+            message={searchQuery ? t('try_different_search') : t('add_first_product')}
+          />
         ) : (
           <View style={styles.productsGrid}>
             {filteredProducts.map((product) => renderProductCard(product))}
@@ -334,61 +298,43 @@ export default function ProductsScreen() {
       </ScrollView>
 
       {/* Floating Action Button */}
-      <TouchableOpacity
-        style={[styles.fab, { backgroundColor: colors.primary }]}
-        onPress={() => {
-          haptics.medium();
-          router.push('/products/add');
-        }}
-        activeOpacity={0.8}
-      >
-        <Plus size={24} color="#FFFFFF" strokeWidth={2.5} />
-      </TouchableOpacity>
+      <FAB
+        icon={<Plus size={24} color={colors.white} strokeWidth={2.5} />}
+        onPress={() => router.push('/products/add')}
+        position="bottom-right"
+      />
 
       {/* Menu Modal */}
-      <Modal
+      <BottomSheet
         visible={menuVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setMenuVisible(false)}
+        onClose={() => setMenuVisible(false)}
+        title={selectedProduct ? getProductName(selectedProduct, currentLanguage) : ''}
+        height="auto"
       >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => {
-            haptics.light();
-            setMenuVisible(false);
-          }}
-        >
-          <View style={[styles.menuContainer, { backgroundColor: colors.surface }]}>
-            <Text style={[styles.menuTitle, { color: colors.text }]}>
-              {selectedProduct ? getProductName(selectedProduct, currentLanguage) : ''}
+        <View style={styles.menuContent}>
+          <TouchableOpacity
+            style={[styles.menuItem, { borderBottomColor: colors.border }]}
+            onPress={handleEditPress}
+            activeOpacity={0.7}
+          >
+            <Edit2 size={20} color={colors.primary} strokeWidth={2} />
+            <Text style={[styles.menuItemText, { color: colors.text }]}>
+              {t('edit_product')}
             </Text>
+          </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[styles.menuItem, { borderBottomColor: colors.border }]}
-              onPress={handleEditPress}
-              activeOpacity={0.7}
-            >
-              <Edit2 size={20} color={colors.primary} strokeWidth={2} />
-              <Text style={[styles.menuItemText, { color: colors.text }]}>
-                {t('edit_product')}
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={handleDeletePress}
-              activeOpacity={0.7}
-            >
-              <Trash2 size={20} color="#EF4444" strokeWidth={2} />
-              <Text style={[styles.menuItemText, { color: '#EF4444' }]}>
-                {t('delete_product')}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      </Modal>
+          <TouchableOpacity
+            style={styles.menuItem}
+            onPress={handleDeletePress}
+            activeOpacity={0.7}
+          >
+            <Trash2 size={20} color={colors.error} strokeWidth={2} />
+            <Text style={[styles.menuItemText, { color: colors.error }]}>
+              {t('delete_product')}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </BottomSheet>
     </View>
   );
 }
@@ -397,35 +343,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  centerContent: {
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: spacing.m,
-    fontSize: 16,
-  },
 
   // Search Bar
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginHorizontal: spacing.m,
-    marginVertical: spacing.s,
+  searchWrapper: {
     paddingHorizontal: spacing.m,
     paddingVertical: spacing.s,
-    borderRadius: design.radius.md,
-    borderWidth: 1,
-  },
-  searchInput: {
-    flex: 1,
-    marginLeft: spacing.s,
-    fontSize: 15,
-    paddingVertical: spacing.xs,
-  },
-  clearButton: {
-    fontSize: 18,
-    paddingHorizontal: spacing.xs,
   },
 
   scrollView: {
@@ -447,11 +369,7 @@ const styles = StyleSheet.create({
     borderRadius: design.radius.md,
     marginBottom: spacing.m,
     borderWidth: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 3,
-    elevation: 2,
+    ...design.shadow.sm,
     overflow: 'hidden',
   },
   imageContainer: {
@@ -474,43 +392,26 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    paddingVertical: 4,
+    paddingVertical: spacing.xs,
     alignItems: 'center',
   },
   inactiveBadgeText: {
     color: '#FFFFFF',
     fontSize: 10,
-    fontWeight: 'bold',
+    fontWeight: '700',
   },
   discountBadge: {
     position: 'absolute',
     top: spacing.s,
     right: spacing.s,
     paddingHorizontal: spacing.xs,
-    paddingVertical: 4,
+    paddingVertical: spacing.xs,
     borderRadius: design.radius.sm,
   },
   discountBadgeText: {
     color: '#FFFFFF',
     fontSize: 11,
-    fontWeight: 'bold',
-  },
-
-  // Menu Button (3 dots)
-  menuButton: {
-    position: 'absolute',
-    top: spacing.s,
-    left: spacing.s,
-    width: 32,
-    height: 32,
-    borderRadius: design.radius.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    fontWeight: '700',
   },
 
   productInfo: {
@@ -519,108 +420,47 @@ const styles = StyleSheet.create({
   productName: {
     fontSize: 14,
     fontWeight: '600',
-    marginBottom: 4,
+    marginBottom: spacing.xs,
     height: 34,
   },
   categoryName: {
     fontSize: 11,
-    marginBottom: 4,
+    marginBottom: spacing.xs,
   },
   priceContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: spacing.xs,
     flexWrap: 'wrap',
   },
   price: {
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '700',
     marginRight: spacing.xs,
   },
   originalPrice: {
     fontSize: 12,
     textDecorationLine: 'line-through',
   },
-  stockBadge: {
-    paddingHorizontal: spacing.xs,
-    paddingVertical: 2,
-    borderRadius: design.radius.sm,
-    alignSelf: 'flex-start',
-  },
-  stockText: {
-    fontSize: 10,
-    fontWeight: '600',
-  },
 
-  // Empty State
-  emptyState: {
-    padding: spacing.xxl,
-    borderRadius: design.radius.md,
+  // Stock & Menu Button Row
+  stockActionsRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: spacing.xl,
+    justifyContent: 'space-between',
+    gap: spacing.xs,
   },
-  emptyIconContainer: {
-    width: 80,
-    height: 80,
+  menuBtn: {
+    width: 32,
+    height: 32,
     borderRadius: design.radius.full,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: spacing.m,
-  },
-  emptyStateTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: spacing.xs,
-  },
-  emptyStateText: {
-    fontSize: 14,
-    textAlign: 'center',
   },
 
-  // Floating Action Button
-  fab: {
-    position: 'absolute',
-    bottom: spacing.l,
-    right: spacing.l,
-    width: 56,
-    height: 56,
-    borderRadius: design.radius.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-
-  // Menu Modal
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: spacing.l,
-  },
-  menuContainer: {
-    width: '100%',
-    maxWidth: 300,
-    borderRadius: design.radius.lg,
-    padding: spacing.m,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  menuTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: spacing.m,
-    paddingBottom: spacing.s,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.1)',
+  // Menu Modal Content
+  menuContent: {
+    gap: spacing.xs,
   },
   menuItem: {
     flexDirection: 'row',

@@ -4,9 +4,7 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  TextInput,
   RefreshControl,
-  ActivityIndicator,
   Alert,
   Modal,
   TouchableOpacity as RNTouchableOpacity,
@@ -15,11 +13,19 @@ import { useTranslation } from 'react-i18next';
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/store/themeStore';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { SearchBar } from '@/components/ui/SearchBar';
+import { FilterChip } from '@/components/ui/FilterChip';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
+import { BottomSheet } from '@/components/ui/BottomSheet';
 import { TouchableOpacity } from '@/components/ui/TouchableOpacity';
 import { AnimatedCard } from '@/components/ui/AnimatedCard';
+import { OrderCard } from '@/components/orders/OrderCard';
 import { haptics } from '@/utils/haptics';
 import { spacing } from '@/theme/spacing';
+import { design } from '@/theme/design';
 import { formatCurrency } from '@/utils/currency';
+import { Package } from 'lucide-react-native';
 import {
   getOrders,
   Order,
@@ -177,33 +183,13 @@ export default function OrdersScreen() {
 
   const renderSearchBar = () => {
     return (
-      <View style={[styles.searchContainer, { backgroundColor: colors.card }]}>
-        <Text style={styles.searchIcon}>🔍</Text>
-        <TextInput
-          style={[styles.searchInput, { color: colors.text }]}
-          placeholder={t('search_orders')}
-          placeholderTextColor={colors.textSecondary}
+      <View style={styles.searchWrapper}>
+        <SearchBar
           value={searchQuery}
-          onChangeText={(text) => {
-            setSearchQuery(text);
-            if (text.length > 0) {
-              haptics.selection();
-            }
-          }}
-          returnKeyType="search"
+          onChangeText={setSearchQuery}
+          onClear={() => setSearchQuery('')}
+          placeholder={t('search_orders')}
         />
-        {searchQuery.length > 0 && (
-          <TouchableOpacity
-            onPress={() => {
-              setSearchQuery('');
-              haptics.light();
-            }}
-            haptic={false}
-            style={styles.clearButton}
-          >
-            <Text style={styles.clearIcon}>✕</Text>
-          </TouchableOpacity>
-        )}
       </View>
     );
   };
@@ -548,157 +534,54 @@ export default function OrdersScreen() {
   };
 
   const renderOrderCard = (order: Order, index: number) => {
-    const statusInfo = getOrderStatusInfo(order.status);
-    const paymentInfo = getPaymentStatusInfo(order.paymentStatus);
+    const formattedDate = new Date(order.createdAt).toLocaleDateString(currentLocale, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+
+    const formattedTime = new Date(order.createdAt).toLocaleTimeString(currentLocale, {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
 
     return (
-      <AnimatedCard
-        key={order.id}
-        index={index}
-        staggerDelay={50}
-        style={[styles.orderCard, { backgroundColor: colors.surface }]}
-      >
-        <TouchableOpacity
-          onPress={() => {
-            haptics.light();
-            router.push(`/orders/${order.id}`);
+      <AnimatedCard key={order.id} index={index} staggerDelay={50}>
+        <OrderCard
+          orderNumber={order.orderNumber}
+          date={formattedDate}
+          time={formattedTime}
+          customerName={order.customerName}
+          items={order.items.map((item) => ({
+            id: item.id,
+            productName: item.productName || item.name,
+            quantity: item.quantity,
+            price: item.price,
+          }))}
+          total={order.total}
+          currency={order.currency || 'SAR'}
+          orderStatus={order.status}
+          paymentStatus={order.paymentStatus || 'PENDING'}
+          onPress={() => router.push(`/orders/${order.id}`)}
+          onStatusPress={() => {
+            setSelectedOrder(order);
+            setShowOrderStatusModal(true);
           }}
-          activeOpacity={0.7}
-          haptic={false}
-        >
-          {/* Order Header */}
-          <View style={styles.orderHeader}>
-            <View style={styles.orderHeaderLeft}>
-              <Text style={[styles.orderNumber, { color: colors.text }]}>
-                {order.orderNumber}
-              </Text>
-              <Text style={[styles.orderDate, { color: colors.textSecondary }]}>
-                {new Date(order.createdAt).toLocaleDateString(currentLocale, {
-                  year: 'numeric',
-                  month: 'short',
-                  day: 'numeric',
-                })}
-              </Text>
-            </View>
-            <View style={styles.orderHeaderRight}>
-              <Text style={[styles.orderTotal, { color: colors.text }]}>
-                {formatCurrency(order.total, order.currency || 'SAR', currentLocale)}
-              </Text>
-            </View>
-          </View>
-
-          {/* Customer Info */}
-          <View style={styles.customerInfo}>
-            <Text style={{ fontSize: 16 }}>👤</Text>
-            <Text style={[styles.customerName, { color: colors.text }]}>
-              {order.customerName}
-            </Text>
-            {order.customerPhone && (
-              <Text style={[styles.customerPhone, { color: colors.textSecondary }]}>
-                {order.customerPhone}
-              </Text>
-            )}
-          </View>
-
-          {/* Order Items */}
-          <View style={styles.orderItems}>
-            {order.items.slice(0, 2).map((item, index) => (
-              <View key={item.id} style={styles.orderItem}>
-                <Text style={[styles.itemName, { color: colors.text }]}>
-                  {item.productName || item.name}
-                </Text>
-                <Text style={[styles.itemQuantity, { color: colors.textSecondary }]}>
-                  {t('quantity')}: {item.quantity}
-                </Text>
-              </View>
-            ))}
-            {order.items.length > 2 && (
-              <Text style={[styles.moreItems, { color: colors.textSecondary }]}>
-                {t('and_more_items', { count: order.items.length - 2 })}
-              </Text>
-            )}
-          </View>
-
-          {/* Status & Payment */}
-          <View style={styles.orderFooter}>
-            <TouchableOpacity
-              style={[
-                styles.statusBadgeContainer,
-                { backgroundColor: `${statusInfo.color}20` },
-              ]}
-              onPress={(e) => {
-                e.stopPropagation();
-                haptics.light();
-                setSelectedOrder(order);
-                setShowOrderStatusModal(true);
-              }}
-              activeOpacity={0.7}
-            >
-              <Text style={{ fontSize: 14 }}>{statusInfo.icon}</Text>
-              <Text style={[styles.statusText, { color: statusInfo.color }]}>
-                {t(`status_${order.status.toLowerCase()}`)}
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.paymentBadgeContainer,
-                { backgroundColor: `${paymentInfo.color}20` },
-              ]}
-              onPress={(e) => {
-                e.stopPropagation();
-                haptics.light();
-                setSelectedOrder(order);
-                setShowPaymentStatusModal(true);
-              }}
-              activeOpacity={0.7}
-            >
-              <Text style={{ fontSize: 14 }}>{paymentInfo.icon}</Text>
-              <Text style={[styles.paymentText, { color: paymentInfo.color }]}>
-                {t(`payment_${order.paymentStatus?.toLowerCase() || 'pending'}`)}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-
-        {/* Quick Actions */}
-        {order.status === 'PENDING' && (
-          <View style={styles.quickActions}>
-            <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: colors.primary }]}
-              onPress={() => handleStatusChange(order.id, 'CONFIRMED')}
-              hapticType="medium"
-              scaleValue={0.97}
-            >
-              <Text style={styles.actionButtonText}>{t('confirm')}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: '#EF4444' }]}
-              onPress={() => handleStatusChange(order.id, 'CANCELLED')}
-              hapticType="heavy"
-              scaleValue={0.97}
-            >
-              <Text style={styles.actionButtonText}>{t('cancel')}</Text>
-            </TouchableOpacity>
-          </View>
-        )}
+          onPaymentPress={() => {
+            setSelectedOrder(order);
+            setShowPaymentStatusModal(true);
+          }}
+          showActions={false}
+          language={currentLocale}
+        />
       </AnimatedCard>
     );
   };
 
-  if (loading) {
-    return (
-      <View style={[styles.container, styles.centerContent, { backgroundColor: colors.background }]}>
-        <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
-          {t('loading_orders')}
-        </Text>
-      </View>
-    );
-  }
-
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <LoadingOverlay visible={loading} message={t('loading_orders')} />
+
       {/* Modals */}
       {renderOrderStatusModal()}
       {renderPaymentStatusModal()}
@@ -733,14 +616,15 @@ export default function OrdersScreen() {
         }
       >
         {filteredOrders.length === 0 ? (
-          <View style={[styles.emptyState, { backgroundColor: `${colors.primary}10` }]}>
-            <Text style={{ fontSize: 48 }}>📦</Text>
-            <Text style={[styles.emptyStateText, { color: colors.textSecondary }]}>
-              {searchQuery || selectedPaymentStatus !== 'ALL'
+          <EmptyState
+            icon={<Package size={48} color={colors.primary} strokeWidth={1.5} />}
+            title={t('no_orders_found')}
+            message={
+              searchQuery || selectedPaymentStatus !== 'ALL'
                 ? t('no_orders_match_filters')
-                : t('no_orders_found')}
-            </Text>
-          </View>
+                : t('start_selling_to_see_orders')
+            }
+          />
         ) : (
           filteredOrders.map((order, index) => renderOrderCard(order, index))
         )}

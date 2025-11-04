@@ -256,16 +256,7 @@ export default function OrderDetailsScreen() {
 
       {/* Header */}
       <View style={[styles.header, { backgroundColor: colors.card }]}>
-        <TouchableOpacity
-          onPress={() => {
-            haptics.light();
-            router.back();
-          }}
-          style={styles.backButton}
-        >
-          <Text style={[styles.backIcon, { color: colors.primary }]}>←</Text>
-        </TouchableOpacity>
-        <View style={styles.headerCenter}>
+        <View style={styles.headerContent}>
           <Text style={[styles.headerTitle, { color: colors.text }]}>
             {order.orderNumber}
           </Text>
@@ -443,36 +434,36 @@ export default function OrderDetailsScreen() {
               {t('subtotal')}
             </Text>
             <Text style={[styles.summaryValue, { color: colors.text }]}>
-              {formatCurrency(order.subtotal, order.currency || 'SAR', currentLocale)}
+              {formatCurrency(order.subtotal || 0, order.currency || 'SAR', currentLocale)}
             </Text>
           </View>
-          {order.shippingCost > 0 && (
+          {(order.shippingCost || 0) > 0 && (
             <View style={styles.summaryRow}>
               <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>
                 {t('shipping')}
               </Text>
               <Text style={[styles.summaryValue, { color: colors.text }]}>
-                {formatCurrency(order.shippingCost, order.currency || 'SAR', currentLocale)}
+                {formatCurrency(order.shippingCost || 0, order.currency || 'SAR', currentLocale)}
               </Text>
             </View>
           )}
-          {order.tax && order.tax > 0 && (
+          {(order.tax || 0) > 0 && (
             <View style={styles.summaryRow}>
               <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>
                 {t('tax')}
               </Text>
               <Text style={[styles.summaryValue, { color: colors.text }]}>
-                {formatCurrency(order.tax, order.currency || 'SAR', currentLocale)}
+                {formatCurrency(order.tax || 0, order.currency || 'SAR', currentLocale)}
               </Text>
             </View>
           )}
-          {order.discount && order.discount > 0 && (
+          {(order.discount || 0) > 0 && (
             <View style={styles.summaryRow}>
               <Text style={[styles.summaryLabel, { color: colors.error }]}>
                 {t('discount')}
               </Text>
               <Text style={[styles.summaryValue, { color: colors.error }]}>
-                -{formatCurrency(order.discount, order.currency || 'SAR', currentLocale)}
+                -{formatCurrency(order.discount || 0, order.currency || 'SAR', currentLocale)}
               </Text>
             </View>
           )}
@@ -481,7 +472,7 @@ export default function OrderDetailsScreen() {
               {t('total')}
             </Text>
             <Text style={[styles.totalValue, { color: colors.primary }]}>
-              {formatCurrency(order.total, order.currency || 'SAR', currentLocale)}
+              {formatCurrency(order.total || 0, order.currency || 'SAR', currentLocale)}
             </Text>
           </View>
         </AnimatedCard>
@@ -595,8 +586,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
     paddingHorizontal: spacing.m,
     paddingVertical: spacing.m,
     paddingTop: spacing.xxl,
@@ -606,16 +595,8 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
-  backButton: {
-    padding: spacing.s,
-  },
-  backIcon: {
-    fontSize: 28,
-    fontWeight: '600',
-  },
-  headerCenter: {
-    flex: 1,
-    marginLeft: spacing.m,
+  headerContent: {
+    alignItems: 'center',
   },
   headerTitle: {
     fontSize: 20,
