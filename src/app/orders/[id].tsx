@@ -9,7 +9,7 @@ import {
   Image,
   Modal,
 } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/store/themeStore';
 import { TouchableOpacity } from '@/components/ui/TouchableOpacity';
@@ -17,6 +17,31 @@ import { AnimatedCard } from '@/components/ui/AnimatedCard';
 import { haptics } from '@/utils/haptics';
 import { spacing } from '@/theme/spacing';
 import { formatCurrency } from '@/utils/currency';
+import {
+  Box,
+  HStack,
+  VStack,
+  Text as GText,
+  Heading,
+  Pressable,
+  Badge,
+  BadgeText,
+  Actionsheet,
+  ActionsheetBackdrop,
+  ActionsheetContent,
+  ActionsheetDragIndicator,
+  ActionsheetDragIndicatorWrapper,
+} from '@gluestack-ui/themed';
+import {
+  Clock,
+  CheckCircle,
+  XCircle,
+  Truck,
+  DollarSign,
+  AlertCircle,
+  Package,
+  ArrowLeft,
+} from 'lucide-react-native';
 import {
   getOrder,
   Order,
@@ -28,11 +53,35 @@ import {
   updatePaymentStatus,
 } from '@/services/orders.service';
 
+// Helper function to get status config
+const getStatusConfig = (status: OrderStatus) => {
+  const configs = {
+    PENDING: { color: '$warning500', bg: '$warning100', darkBg: '$warning900', icon: Clock },
+    CONFIRMED: { color: '$info500', bg: '$info100', darkBg: '$info900', icon: CheckCircle },
+    PROCESSING: { color: '$purple500', bg: '$purple100', darkBg: '$purple900', icon: Package },
+    SHIPPED: { color: '$primary500', bg: '$primary100', darkBg: '$primary900', icon: Truck },
+    DELIVERED: { color: '$success500', bg: '$success100', darkBg: '$success900', icon: CheckCircle },
+    CANCELLED: { color: '$error500', bg: '$error100', darkBg: '$error900', icon: XCircle },
+    REFUNDED: { color: '$error500', bg: '$error100', darkBg: '$error900', icon: DollarSign },
+  };
+  return configs[status] || configs.PENDING;
+};
+
+const getPaymentStatusConfig = (status: PaymentStatus) => {
+  const configs = {
+    PENDING: { color: '$warning500', bg: '$warning100', darkBg: '$warning900', icon: Clock },
+    PAID: { color: '$success500', bg: '$success100', darkBg: '$success900', icon: CheckCircle },
+    FAILED: { color: '$error500', bg: '$error100', darkBg: '$error900', icon: XCircle },
+    REFUNDED: { color: '$error500', bg: '$error100', darkBg: '$error900', icon: DollarSign },
+  };
+  return configs[status] || configs.PENDING;
+};
+
 export default function OrderDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { t, i18n } = useTranslation('orders');
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
@@ -136,57 +185,89 @@ export default function OrderDetailsScreen() {
     ];
 
     return (
-      <Modal
-        visible={showOrderStatusModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowOrderStatusModal(false)}
+      <Actionsheet
+        isOpen={showOrderStatusModal}
+        onClose={() => setShowOrderStatusModal(false)}
+        zIndex={999}
       >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
-            <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: colors.text }]}>
-                {t('change_order_status')}
-              </Text>
-              <TouchableOpacity
-                onPress={() => {
-                  haptics.light();
-                  setShowOrderStatusModal(false);
-                }}
-              >
-                <Text style={[styles.modalClose, { color: colors.textSecondary }]}>✕</Text>
-              </TouchableOpacity>
-            </View>
-            <ScrollView style={styles.modalScroll}>
+        <ActionsheetBackdrop />
+        <ActionsheetContent zIndex={999} bg="$cardLight" $dark-bg="$cardDark">
+          <ActionsheetDragIndicatorWrapper>
+            <ActionsheetDragIndicator />
+          </ActionsheetDragIndicatorWrapper>
+
+          <VStack w="$full" py="$2" px="$4" space="md">
+            {/* Header */}
+            <Heading size="lg" color="$textLight" $dark-color="$textDark">
+              {t('change_order_status')}
+            </Heading>
+
+            {/* Status Grid - 2 columns */}
+            <HStack space="sm" flexWrap="wrap" justifyContent="space-between" pb="$4">
               {statuses.map((status) => {
-                const info = getOrderStatusInfo(status);
-                const isSelected = order.status === status;
+                const isSelected = order?.status === status;
+                const statusConfig = getStatusConfig(status);
+                const StatusIcon = statusConfig.icon;
 
                 return (
-                  <TouchableOpacity
+                  <Pressable
                     key={status}
-                    style={[
-                      styles.modalOption,
-                      isSelected && { backgroundColor: `${info.color}15` },
-                      { borderBottomColor: colors.border },
-                    ]}
-                    onPress={() => handleStatusChange(status)}
+                    onPress={() => {
+                      handleStatusChange(status);
+                      haptics.selection();
+                    }}
                     disabled={updating}
-                    hapticType="selection"
+                    w="48%"
+                    mb="$2"
                   >
-                    <Text style={[styles.modalOptionText, { color: colors.text }]}>
-                      {t(`status_${status.toLowerCase()}`)}
-                    </Text>
-                    {isSelected && (
-                      <Text style={{ fontSize: 20, color: info.color }}>✓</Text>
-                    )}
-                  </TouchableOpacity>
+                    <Box
+                      px="$3"
+                      py="$3.5"
+                      bg={isSelected ? statusConfig.color : '$surfaceLight'}
+                      $dark-bg={isSelected ? statusConfig.color : '$surfaceDark'}
+                      borderRadius="$xl"
+                      borderWidth={2}
+                      borderColor={isSelected ? statusConfig.color : '$borderLight'}
+                      $dark-borderColor={isSelected ? statusConfig.color : '$borderDark'}
+                    >
+                      <VStack space="sm">
+                        <HStack justifyContent="space-between" alignItems="center">
+                          <Box
+                            w={36}
+                            h={36}
+                            borderRadius="$full"
+                            bg={isSelected ? 'rgba(255, 255, 255, 0.25)' : (isDark ? statusConfig.darkBg : statusConfig.bg)}
+                            alignItems="center"
+                            justifyContent="center"
+                          >
+                            <StatusIcon
+                              size={18}
+                              color={isSelected ? '#FFFFFF' : colors[statusConfig.color.replace('$', '') as keyof typeof colors]}
+                              strokeWidth={2.5}
+                            />
+                          </Box>
+                          {isSelected && (
+                            <CheckCircle size={20} color="#FFFFFF" strokeWidth={3} />
+                          )}
+                        </HStack>
+                        <GText
+                          fontSize="$sm"
+                          fontWeight={isSelected ? '$bold' : '$semibold'}
+                          color={isSelected ? '$white' : '$textLight'}
+                          $dark-color={isSelected ? '$white' : '$textDark'}
+                          numberOfLines={2}
+                        >
+                          {t(`status_${status.toLowerCase()}`)}
+                        </GText>
+                      </VStack>
+                    </Box>
+                  </Pressable>
                 );
               })}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
+            </HStack>
+          </VStack>
+        </ActionsheetContent>
+      </Actionsheet>
     );
   };
 
@@ -194,145 +275,245 @@ export default function OrderDetailsScreen() {
     const statuses: PaymentStatus[] = ['PENDING', 'PAID', 'FAILED', 'REFUNDED'];
 
     return (
-      <Modal
-        visible={showPaymentStatusModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowPaymentStatusModal(false)}
+      <Actionsheet
+        isOpen={showPaymentStatusModal}
+        onClose={() => setShowPaymentStatusModal(false)}
+        zIndex={999}
       >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
-            <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: colors.text }]}>
-                {t('change_payment_status')}
-              </Text>
-              <TouchableOpacity
-                onPress={() => {
-                  haptics.light();
-                  setShowPaymentStatusModal(false);
-                }}
-              >
-                <Text style={[styles.modalClose, { color: colors.textSecondary }]}>✕</Text>
-              </TouchableOpacity>
-            </View>
-            <ScrollView style={styles.modalScroll}>
+        <ActionsheetBackdrop />
+        <ActionsheetContent zIndex={999} bg="$cardLight" $dark-bg="$cardDark">
+          <ActionsheetDragIndicatorWrapper>
+            <ActionsheetDragIndicator />
+          </ActionsheetDragIndicatorWrapper>
+
+          <VStack w="$full" py="$2" px="$4" space="md">
+            {/* Header */}
+            <Heading size="lg" color="$textLight" $dark-color="$textDark">
+              {t('change_payment_status')}
+            </Heading>
+
+            {/* Payment Status Grid - 2 columns */}
+            <HStack space="sm" flexWrap="wrap" justifyContent="space-between" pb="$4">
               {statuses.map((status) => {
-                const info = getPaymentStatusInfo(status);
-                const isSelected = order.paymentStatus === status;
+                const isSelected = order?.paymentStatus === status;
+                const statusConfig = getPaymentStatusConfig(status);
+                const StatusIcon = statusConfig.icon;
 
                 return (
-                  <TouchableOpacity
+                  <Pressable
                     key={status}
-                    style={[
-                      styles.modalOption,
-                      isSelected && { backgroundColor: `${info.color}15` },
-                      { borderBottomColor: colors.border },
-                    ]}
-                    onPress={() => handlePaymentStatusChange(status)}
+                    onPress={() => {
+                      handlePaymentStatusChange(status);
+                      haptics.selection();
+                    }}
                     disabled={updating}
-                    hapticType="selection"
+                    w="48%"
+                    mb="$2"
                   >
-                    <Text style={[styles.modalOptionText, { color: colors.text }]}>
-                      {t(`payment_${status.toLowerCase()}`)}
-                    </Text>
-                    {isSelected && (
-                      <Text style={{ fontSize: 20, color: info.color }}>✓</Text>
-                    )}
-                  </TouchableOpacity>
+                    <Box
+                      px="$3"
+                      py="$3.5"
+                      bg={isSelected ? statusConfig.color : '$surfaceLight'}
+                      $dark-bg={isSelected ? statusConfig.color : '$surfaceDark'}
+                      borderRadius="$xl"
+                      borderWidth={2}
+                      borderColor={isSelected ? statusConfig.color : '$borderLight'}
+                      $dark-borderColor={isSelected ? statusConfig.color : '$borderDark'}
+                    >
+                      <VStack space="sm">
+                        <HStack justifyContent="space-between" alignItems="center">
+                          <Box
+                            w={36}
+                            h={36}
+                            borderRadius="$full"
+                            bg={isSelected ? 'rgba(255, 255, 255, 0.25)' : (isDark ? statusConfig.darkBg : statusConfig.bg)}
+                            alignItems="center"
+                            justifyContent="center"
+                          >
+                            <StatusIcon
+                              size={18}
+                              color={isSelected ? '#FFFFFF' : colors[statusConfig.color.replace('$', '') as keyof typeof colors]}
+                              strokeWidth={2.5}
+                            />
+                          </Box>
+                          {isSelected && (
+                            <CheckCircle size={20} color="#FFFFFF" strokeWidth={3} />
+                          )}
+                        </HStack>
+                        <GText
+                          fontSize="$sm"
+                          fontWeight={isSelected ? '$bold' : '$semibold'}
+                          color={isSelected ? '$white' : '$textLight'}
+                          $dark-color={isSelected ? '$white' : '$textDark'}
+                          numberOfLines={2}
+                        >
+                          {t(`payment_${status.toLowerCase()}`)}
+                        </GText>
+                      </VStack>
+                    </Box>
+                  </Pressable>
                 );
               })}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
+            </HStack>
+          </VStack>
+        </ActionsheetContent>
+      </Actionsheet>
     );
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Modals */}
-      {renderOrderStatusModal()}
-      {renderPaymentStatusModal()}
+    <>
+      <Stack.Screen
+        options={{
+          headerShown: false,
+          title: 'Order Details',
+        }}
+      />
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        {/* Modals */}
+        {renderOrderStatusModal()}
+        {renderPaymentStatusModal()}
 
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: colors.card }]}>
-        <View style={styles.headerContent}>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>
-            {order.orderNumber}
-          </Text>
-          <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
-            {new Date(order.createdAt).toLocaleDateString(currentLocale, {
-              year: 'numeric',
-              month: 'long',
-              day: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit',
-            })}
-          </Text>
-        </View>
-      </View>
+        {/* Header */}
+        <Box bg="$cardLight" $dark-bg="$cardDark" pt="$12" pb="$4" px="$4">
+        <HStack alignItems="center" space="md" mb="$3">
+          {/* Back Button */}
+          <Pressable
+            onPress={() => {
+              haptics.light();
+              router.back();
+            }}
+            w={40}
+            h={40}
+            borderRadius="$full"
+            bg="$surfaceLight"
+            $dark-bg="$surfaceDark"
+            alignItems="center"
+            justifyContent="center"
+          >
+            <ArrowLeft size={20} color={colors.text} strokeWidth={2.5} />
+          </Pressable>
+
+          {/* Title */}
+          <VStack flex={1}>
+            <Heading size="lg" color="$textLight" $dark-color="$textDark">
+              Order Details
+            </Heading>
+            <GText fontSize="$xs" color="$textSecondaryLight" $dark-color="$textSecondaryDark">
+              {order.orderNumber}
+            </GText>
+          </VStack>
+        </HStack>
+
+        {/* Date */}
+        <GText fontSize="$sm" color="$textSecondaryLight" $dark-color="$textSecondaryDark" textAlign="center">
+          {new Date(order.createdAt).toLocaleDateString(currentLocale, {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+          })}
+        </GText>
+      </Box>
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
         {/* Status & Payment Cards */}
-        <View style={styles.statusRow}>
-          <AnimatedCard index={0} style={{ flex: 1 }}>
-            <TouchableOpacity
-              style={[styles.statusCard, { backgroundColor: colors.surface }]}
-              onPress={() => {
-                haptics.light();
-                setShowOrderStatusModal(true);
-              }}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.statusLabel, { color: colors.textSecondary }]}>
-                {t('order_status')}
-              </Text>
-              <View
-                style={[
-                  styles.statusBadge,
-                  { backgroundColor: `${statusInfo?.color || colors.primary}20` },
-                ]}
+        <Box px="$4" mb="$4">
+          <HStack space="md">
+            {/* Order Status Card */}
+            <Box flex={1}>
+              <Pressable
+                onPress={() => {
+                  haptics.light();
+                  setShowOrderStatusModal(true);
+                }}
               >
-                <Text style={{ fontSize: 20 }}>{statusInfo?.icon || '📦'}</Text>
-                <Text style={[styles.statusText, { color: statusInfo?.color || colors.primary }]}>
-                  {t(`status_${order.status?.toLowerCase() || 'pending'}`)}
-                </Text>
-              </View>
-              <Text style={[styles.statusHint, { color: colors.textSecondary }]}>
-                {t('tap_to_change')}
-              </Text>
-            </TouchableOpacity>
-          </AnimatedCard>
+                <Box
+                  bg="$cardLight"
+                  $dark-bg="$cardDark"
+                  borderRadius="$xl"
+                  p="$4"
+                  borderWidth={2}
+                  borderColor={getStatusConfig(order.status).color}
+                >
+                  <VStack space="sm">
+                    <GText fontSize="$xs" color="$textSecondaryLight" $dark-color="$textSecondaryDark" fontWeight="$medium">
+                      {t('order_status')}
+                    </GText>
 
-          <AnimatedCard index={1} style={{ flex: 1 }}>
-            <TouchableOpacity
-              style={[styles.statusCard, { backgroundColor: colors.surface }]}
-              onPress={() => {
-                haptics.light();
-                setShowPaymentStatusModal(true);
-              }}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.statusLabel, { color: colors.textSecondary }]}>
-                {t('payment_status')}
-              </Text>
-              <View
-                style={[
-                  styles.statusBadge,
-                  { backgroundColor: `${paymentInfo?.color || colors.primary}20` },
-                ]}
+                    <Box
+                      bg={getStatusConfig(order.status).color}
+                      borderRadius="$lg"
+                      p="$2.5"
+                    >
+                      <HStack space="xs" alignItems="center" justifyContent="center">
+                        {React.createElement(getStatusConfig(order.status).icon, {
+                          size: 18,
+                          color: '#FFFFFF',
+                          strokeWidth: 2.5,
+                        })}
+                        <GText fontSize="$sm" color="$white" fontWeight="$bold" numberOfLines={1}>
+                          {t(`status_${order.status?.toLowerCase() || 'pending'}`)}
+                        </GText>
+                      </HStack>
+                    </Box>
+
+                    <GText fontSize="$2xs" color="$textTertiaryLight" $dark-color="$textTertiaryDark" textAlign="center">
+                      {t('tap_to_change')}
+                    </GText>
+                  </VStack>
+                </Box>
+              </Pressable>
+            </Box>
+
+            {/* Payment Status Card */}
+            <Box flex={1}>
+              <Pressable
+                onPress={() => {
+                  haptics.light();
+                  setShowPaymentStatusModal(true);
+                }}
               >
-                <Text style={{ fontSize: 20 }}>{paymentInfo?.icon || '💳'}</Text>
-                <Text style={[styles.statusText, { color: paymentInfo?.color || colors.primary }]}>
-                  {t(`payment_${order.paymentStatus?.toLowerCase() || 'pending'}`)}
-                </Text>
-              </View>
-              <Text style={[styles.statusHint, { color: colors.textSecondary }]}>
-                {t('tap_to_change')}
-              </Text>
-            </TouchableOpacity>
-          </AnimatedCard>
-        </View>
+                <Box
+                  bg="$cardLight"
+                  $dark-bg="$cardDark"
+                  borderRadius="$xl"
+                  p="$4"
+                  borderWidth={2}
+                  borderColor={getPaymentStatusConfig(order.paymentStatus).color}
+                >
+                  <VStack space="sm">
+                    <GText fontSize="$xs" color="$textSecondaryLight" $dark-color="$textSecondaryDark" fontWeight="$medium">
+                      {t('payment_status')}
+                    </GText>
+
+                    <Box
+                      bg={getPaymentStatusConfig(order.paymentStatus).color}
+                      borderRadius="$lg"
+                      p="$2.5"
+                    >
+                      <HStack space="xs" alignItems="center" justifyContent="center">
+                        {React.createElement(getPaymentStatusConfig(order.paymentStatus).icon, {
+                          size: 18,
+                          color: '#FFFFFF',
+                          strokeWidth: 2.5,
+                        })}
+                        <GText fontSize="$sm" color="$white" fontWeight="$bold" numberOfLines={1}>
+                          {t(`payment_${order.paymentStatus?.toLowerCase() || 'pending'}`)}
+                        </GText>
+                      </HStack>
+                    </Box>
+
+                    <GText fontSize="$2xs" color="$textTertiaryLight" $dark-color="$textTertiaryDark" textAlign="center">
+                      {t('tap_to_change')}
+                    </GText>
+                  </VStack>
+                </Box>
+              </Pressable>
+            </Box>
+          </HStack>
+        </Box>
 
         {/* Customer Info */}
         <AnimatedCard index={2} style={[styles.section, { backgroundColor: colors.surface }]}>
@@ -566,6 +747,7 @@ export default function OrderDetailsScreen() {
         )}
       </ScrollView>
     </View>
+    </>
   );
 }
 

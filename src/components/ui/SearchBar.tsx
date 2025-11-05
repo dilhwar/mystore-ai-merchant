@@ -6,6 +6,7 @@
 import React from 'react';
 import { View, TextInput, TouchableOpacity, StyleSheet, TextInputProps } from 'react-native';
 import { Search, X } from 'lucide-react-native';
+import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/store/themeStore';
 import { spacing } from '@/theme/spacing';
 import { design } from '@/theme/design';
@@ -23,10 +24,12 @@ export function SearchBar({
   value,
   onChangeText,
   onClear,
-  placeholder = 'Search...',
+  placeholder,
   ...props
 }: SearchBarProps) {
+  const { t } = useTranslation('common');
   const { colors } = useTheme();
+  const defaultPlaceholder = placeholder || t('search_placeholder');
 
   const handleClear = () => {
     haptics.light();
@@ -53,7 +56,7 @@ export function SearchBar({
             textAlign: getTextAlign(),
           },
         ]}
-        placeholder={placeholder}
+        placeholder={defaultPlaceholder}
         placeholderTextColor={colors.textSecondary}
         value={value}
         onChangeText={onChangeText}

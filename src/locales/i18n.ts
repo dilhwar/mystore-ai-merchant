@@ -77,4 +77,24 @@ if (i18n.language === 'ar') {
   I18nManager.forceRTL(false);
 }
 
+// Function to change language
+export const changeLanguage = async (lang: 'en' | 'ar') => {
+  try {
+    // Change i18n language
+    await i18n.changeLanguage(lang);
+
+    // Update RTL based on language
+    const isRTL = lang === 'ar';
+
+    // Force RTL update
+    I18nManager.forceRTL(isRTL);
+    I18nManager.allowRTL(isRTL);
+
+    return { needsReload: I18nManager.isRTL !== isRTL };
+  } catch (error) {
+    console.error('Error changing language:', error);
+    throw error;
+  }
+};
+
 export default i18n;

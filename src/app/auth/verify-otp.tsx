@@ -87,7 +87,7 @@ export default function VerifyOTPScreen() {
           t('register_success'),
           [
             {
-              text: 'OK',
+              text: t('common:ok'),
               onPress: () => router.replace('/tabs/dashboard'),
             },
           ]

@@ -9,6 +9,9 @@ import { SectionHeader } from '@/components/ui/SectionHeader';
 import { Divider } from '@/components/ui/Divider';
 import { spacing } from '@/theme/spacing';
 import { design } from '@/theme/design';
+import { changeLanguage } from '@/locales/i18n';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Updates from 'expo-updates';
 
 interface SettingItem {
   id: string;
@@ -26,6 +29,7 @@ interface SettingSection {
 
 export default function SettingsScreen() {
   const { t } = useTranslation('settings');
+  const { t: tCommon } = useTranslation('common');
   const { colors } = useTheme();
   const { user, logout } = useAuth();
 
@@ -47,6 +51,74 @@ export default function SettingsScreen() {
     );
   };
 
+  const handleLanguageChange = async () => {
+    Alert.alert(
+      tCommon('select_language'),
+      tCommon('choose_app_language'),
+      [
+        {
+          text: tCommon('ar'),
+          onPress: async () => {
+            try {
+              await AsyncStorage.setItem('appLanguage', 'ar');
+              await changeLanguage('ar');
+
+              Alert.alert(
+                tCommon('language_changed'),
+                tCommon('reload_app_message'),
+                [
+                  { text: tCommon('later'), style: 'cancel' },
+                  {
+                    text: tCommon('reload'),
+                    onPress: async () => {
+                      if (__DEV__) {
+                        Alert.alert(tCommon('reload'), tCommon('reload_manually'));
+                      } else {
+                        await Updates.reloadAsync();
+                      }
+                    },
+                  },
+                ]
+              );
+            } catch (error) {
+              console.error('Error changing language:', error);
+            }
+          },
+        },
+        {
+          text: tCommon('en'),
+          onPress: async () => {
+            try {
+              await AsyncStorage.setItem('appLanguage', 'en');
+              await changeLanguage('en');
+
+              Alert.alert(
+                tCommon('language_changed'),
+                tCommon('reload_app_message'),
+                [
+                  { text: tCommon('later'), style: 'cancel' },
+                  {
+                    text: tCommon('reload'),
+                    onPress: async () => {
+                      if (__DEV__) {
+                        Alert.alert(tCommon('reload'), tCommon('reload_manually'));
+                      } else {
+                        await Updates.reloadAsync();
+                      }
+                    },
+                  },
+                ]
+              );
+            } catch (error) {
+              console.error('Error changing language:', error);
+            }
+          },
+        },
+        { text: tCommon('cancel'), style: 'cancel' },
+      ]
+    );
+  };
+
   const sections: SettingSection[] = [
     {
       title: t('store'),
@@ -56,6 +128,12 @@ export default function SettingsScreen() {
           icon: '🏪',
           label: t('store_settings'),
           route: '/settings/store-profile',
+        },
+        {
+          id: 'regional-settings',
+          icon: '🌍',
+          label: t('regional_settings'),
+          route: '/settings/regional',
         },
         {
           id: 'order-settings',
@@ -84,6 +162,7 @@ export default function SettingsScreen() {
           id: 'language',
           icon: '🌐',
           label: t('language'),
+          onPress: handleLanguageChange,
         },
         {
           id: 'theme',
@@ -229,7 +308,7 @@ export default function SettingsScreen() {
 
         {/* App Version */}
         <Text style={[styles.versionText, { color: colors.textSecondary }]}>
-          Version 1.0.0
+          {tCommon('version')} 1.0.0
         </Text>
       </ScrollView>
     </View>

@@ -224,7 +224,7 @@ export default function RegisterScreen() {
 
         <View style={styles.dividerContainer}>
           <View style={[styles.divider, { backgroundColor: colors.border }]} />
-          <Text style={[styles.dividerText, { color: colors.textSecondary }]}>or</Text>
+          <Text style={[styles.dividerText, { color: colors.textSecondary }]}>{t('common:or')}</Text>
           <View style={[styles.divider, { backgroundColor: colors.border }]} />
         </View>
 

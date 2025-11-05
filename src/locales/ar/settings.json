@@ -193,5 +193,24 @@
   "faq_4_answer": "انتقل إلى الإعدادات > إعدادات الطلبات > طرق الشحن لتكوين مناطق الشحن والأسعار.",
   "app_information": "معلومات التطبيق",
   "version": "الإصدار",
-  "build": "البناء"
+  "build": "البناء",
+
+  "regional_settings": "الإعدادات الإقليمية",
+  "regional_settings_description": "تكوين التفضيلات الإقليمية لمتجرك",
+  "currency": "العملة",
+  "currency_description": "العملة الافتراضية لمتجرك",
+  "select_currency": "اختر العملة",
+  "timezone": "المنطقة الزمنية",
+  "timezone_description": "المنطقة الزمنية لمتجرك للطلبات والتقارير",
+  "select_timezone": "اختر المنطقة الزمنية",
+  "default_language": "اللغة الافتراضية",
+  "default_language_description": "اللغة الافتراضية لمحتوى المتجر",
+  "select_language": "اختر اللغة",
+  "default_country_code": "رمز الدولة الافتراضي",
+  "default_country_code_description": "رمز الدولة الافتراضي لهواتف العملاء",
+  "select_country_code": "اختر رمز الدولة",
+  "whatsapp_language": "لغة واتساب",
+  "whatsapp_language_description": "لغة إشعارات واتساب",
+  "loading": "جاري التحميل...",
+  "settings_saved_successfully": "تم حفظ الإعدادات بنجاح"
 }

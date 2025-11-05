@@ -34,5 +34,20 @@
   "ar": "Arabic",
   "inactive": "Inactive",
   "method": "method",
-  "methods": "methods"
+  "methods": "methods",
+  "or": "or",
+  "merchant": "Merchant",
+  "active": "Active",
+  "status": "Status",
+  "payment": "Payment",
+  "items": "items",
+  "search_placeholder": "Search...",
+  "version": "Version",
+  "select_language": "Select Language",
+  "choose_app_language": "Choose app language",
+  "language_changed": "Language Changed",
+  "reload_app_message": "Would you like to reload the app now to apply changes?",
+  "later": "Later",
+  "reload": "Reload",
+  "reload_manually": "Please manually restart the app in development mode"
 }

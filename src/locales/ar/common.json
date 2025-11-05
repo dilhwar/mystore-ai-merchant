@@ -34,5 +34,20 @@
   "ar": "العربية",
   "inactive": "غير نشط",
   "method": "طريقة",
-  "methods": "طرق"
+  "methods": "طرق",
+  "or": "أو",
+  "merchant": "تاجر",
+  "active": "نشط",
+  "status": "الحالة",
+  "payment": "الدفع",
+  "items": "عناصر",
+  "search_placeholder": "بحث...",
+  "version": "الإصدار",
+  "select_language": "اختر اللغة",
+  "choose_app_language": "اختر لغة التطبيق",
+  "language_changed": "تم تغيير اللغة",
+  "reload_app_message": "هل تريد إعادة تشغيل التطبيق الآن لتطبيق التغييرات؟",
+  "later": "لاحقاً",
+  "reload": "إعادة التشغيل",
+  "reload_manually": "يرجى إعادة تشغيل التطبيق يدوياً في وضع التطوير"
 }

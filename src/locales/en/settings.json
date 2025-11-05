@@ -193,5 +193,24 @@
   "faq_4_answer": "Navigate to Settings > Order Settings > Shipping Methods to configure shipping zones and rates.",
   "app_information": "App Information",
   "version": "Version",
-  "build": "Build"
+  "build": "Build",
+
+  "regional_settings": "Regional Settings",
+  "regional_settings_description": "Configure regional preferences for your store",
+  "currency": "Currency",
+  "currency_description": "Default currency for your store",
+  "select_currency": "Select currency",
+  "timezone": "Timezone",
+  "timezone_description": "Your store's timezone for orders and reports",
+  "select_timezone": "Select timezone",
+  "default_language": "Default Language",
+  "default_language_description": "Default language for store content",
+  "select_language": "Select language",
+  "default_country_code": "Default Country Code",
+  "default_country_code_description": "Default phone country code for customers",
+  "select_country_code": "Select country code",
+  "whatsapp_language": "WhatsApp Language",
+  "whatsapp_language_description": "Language for WhatsApp notifications",
+  "loading": "Loading...",
+  "settings_saved_successfully": "Settings saved successfully"
 }

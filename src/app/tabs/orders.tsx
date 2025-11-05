@@ -1,31 +1,48 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  RefreshControl,
-  Alert,
-  Modal,
-  TouchableOpacity as RNTouchableOpacity,
-} from 'react-native';
+import { ScrollView, RefreshControl, Dimensions, StyleSheet, View as RNView } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/store/themeStore';
-import { PageHeader } from '@/components/ui/PageHeader';
-import { SearchBar } from '@/components/ui/SearchBar';
-import { FilterChip } from '@/components/ui/FilterChip';
-import { EmptyState } from '@/components/ui/EmptyState';
-import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
-import { BottomSheet } from '@/components/ui/BottomSheet';
-import { TouchableOpacity } from '@/components/ui/TouchableOpacity';
-import { AnimatedCard } from '@/components/ui/AnimatedCard';
-import { OrderCard } from '@/components/orders/OrderCard';
 import { haptics } from '@/utils/haptics';
-import { spacing } from '@/theme/spacing';
-import { design } from '@/theme/design';
 import { formatCurrency } from '@/utils/currency';
-import { Package } from 'lucide-react-native';
+import {
+  Box,
+  HStack,
+  VStack,
+  Text,
+  Heading,
+  Pressable,
+  Badge,
+  BadgeText,
+  Input,
+  InputField,
+  InputSlot,
+  InputIcon,
+  Card,
+  Actionsheet,
+  ActionsheetBackdrop,
+  ActionsheetContent,
+  ActionsheetDragIndicator,
+  ActionsheetDragIndicatorWrapper,
+  ActionsheetItem,
+  ActionsheetItemText,
+  Divider,
+} from '@gluestack-ui/themed';
+import {
+  Search,
+  Filter,
+  Package,
+  X,
+  ChevronRight,
+  Clock,
+  CheckCircle,
+  XCircle,
+  Truck,
+  DollarSign,
+  User,
+  Phone,
+} from 'lucide-react-native';
+import { OrderCardSkeleton } from '@/components/ui/SkeletonLoader';
 import {
   getOrders,
   Order,
@@ -38,10 +55,37 @@ import {
   updatePaymentStatus,
 } from '@/services/orders.service';
 
-export default function OrdersScreen() {
+const { width } = Dimensions.get('window');
+
+// Status badge configurations
+const getStatusConfig = (status: OrderStatus) => {
+  const configs = {
+    PENDING: { color: '$warning500', bg: '$warning100', darkBg: '$warning900', icon: Clock },
+    CONFIRMED: { color: '$info500', bg: '$info100', darkBg: '$info900', icon: CheckCircle },
+    PROCESSING: { color: '$purple500', bg: '$purple100', darkBg: '$purple900', icon: Package },
+    SHIPPED: { color: '$primary500', bg: '$primary100', darkBg: '$primary900', icon: Truck },
+    DELIVERED: { color: '$success500', bg: '$success100', darkBg: '$success900', icon: CheckCircle },
+    CANCELLED: { color: '$error500', bg: '$error100', darkBg: '$error900', icon: XCircle },
+    REFUNDED: { color: '$error500', bg: '$error100', darkBg: '$error900', icon: DollarSign },
+  };
+  return configs[status] || configs.PENDING;
+};
+
+const getPaymentStatusConfig = (status: PaymentStatus) => {
+  const configs = {
+    PENDING: { color: '$warning500', bg: '$warning100', darkBg: '$warning900' },
+    PAID: { color: '$success500', bg: '$success100', darkBg: '$success900' },
+    FAILED: { color: '$error500', bg: '$error100', darkBg: '$error900' },
+    REFUNDED: { color: '$error500', bg: '$error100', darkBg: '$error900' },
+  };
+  return configs[status] || configs.PENDING;
+};
+
+export default function OrdersNewScreen() {
   const { t, i18n } = useTranslation('orders');
   const router = useRouter();
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
+
   const [orders, setOrders] = useState<Order[]>([]);
   const [filteredOrders, setFilteredOrders] = useState<Order[]>([]);
   const [stats, setStats] = useState<OrderStats[]>([]);
@@ -49,14 +93,7 @@ export default function OrdersScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<OrderStatus | 'ALL'>('ALL');
-  const [selectedPaymentStatus, setSelectedPaymentStatus] = useState<PaymentStatus | 'ALL'>('ALL');
-  const [showFilters, setShowFilters] = useState(false);
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [showOrderStatusModal, setShowOrderStatusModal] = useState(false);
-  const [showPaymentStatusModal, setShowPaymentStatusModal] = useState(false);
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-  const [updating, setUpdating] = useState(false);
+  const [showFilterSheet, setShowFilterSheet] = useState(false);
 
   const currentLocale = i18n.language;
 
@@ -70,7 +107,7 @@ export default function OrdersScreen() {
       }
 
       const params: any = {
-        page: refresh ? 1 : page,
+        page: 1,
         limit: 20,
       };
 
@@ -80,23 +117,15 @@ export default function OrdersScreen() {
 
       const data = await getOrders(params);
 
-      if (refresh) {
-        setOrders(data.items);
-        setPage(1);
-        haptics.success();
-      } else {
-        setOrders(data.items);
-      }
-
+      setOrders(data.items);
       setStats(data.stats);
-      setTotalPages(data.totalPages);
+
+      if (refresh) {
+        haptics.success();
+      }
     } catch (error: any) {
       console.error('Load orders error:', error.message);
       haptics.error();
-      Alert.alert(
-        t('error'),
-        t('failed_to_load_orders')
-      );
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -107,505 +136,150 @@ export default function OrdersScreen() {
     loadOrders();
   }, [selectedStatus]);
 
-  // Filter orders based on search and payment status
+  // Filter orders based on search
   useEffect(() => {
     let filtered = [...orders];
 
-    // Filter by search query
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase().trim();
-      filtered = filtered.filter((order) =>
-        order.orderNumber.toLowerCase().includes(query) ||
-        order.customerName.toLowerCase().includes(query) ||
-        order.customerPhone?.toLowerCase().includes(query) ||
-        order.customerEmail.toLowerCase().includes(query) ||
-        order.items.some(item =>
-          item.productName.toLowerCase().includes(query) ||
-          item.name.toLowerCase().includes(query)
-        )
+      filtered = filtered.filter(
+        (order) =>
+          order.orderNumber.toLowerCase().includes(query) ||
+          order.customerName.toLowerCase().includes(query) ||
+          order.customerPhone?.toLowerCase().includes(query)
       );
     }
 
-    // Filter by payment status
-    if (selectedPaymentStatus !== 'ALL') {
-      filtered = filtered.filter((order) => order.paymentStatus === selectedPaymentStatus);
-    }
-
     setFilteredOrders(filtered);
-  }, [orders, searchQuery, selectedPaymentStatus]);
+  }, [orders, searchQuery]);
 
   const onRefresh = useCallback(() => {
     loadOrders(true);
   }, [selectedStatus]);
 
-  const handleStatusChange = async (orderId: string, newStatus: OrderStatus) => {
-    try {
-      haptics.medium();
-      setUpdating(true);
-      setShowOrderStatusModal(false);
-      await updateOrderStatus(orderId, newStatus);
-      haptics.success();
-      Alert.alert(t('success'), t('status_updated'));
-      loadOrders(true);
-    } catch (error: any) {
-      console.error('Update status error:', error.message);
-      haptics.error();
-      Alert.alert(t('error'), t('failed_to_update_status'));
-    } finally {
-      setUpdating(false);
-      setSelectedOrder(null);
-    }
-  };
-
-  const handlePaymentStatusChange = async (orderId: string, newStatus: PaymentStatus) => {
-    try {
-      haptics.medium();
-      setUpdating(true);
-      setShowPaymentStatusModal(false);
-      await updatePaymentStatus(orderId, newStatus);
-      haptics.success();
-      Alert.alert(t('success'), t('payment_status_updated'));
-      loadOrders(true);
-    } catch (error: any) {
-      console.error('Update payment status error:', error.message);
-      haptics.error();
-      Alert.alert(t('error'), t('failed_to_update_payment_status'));
-    } finally {
-      setUpdating(false);
-      setSelectedOrder(null);
-    }
-  };
-
   const getStatCount = (status: OrderStatus): number => {
-    const stat = stats.find(s => s.status === status);
+    const stat = stats.find((s) => s.status === status);
     return stat?._count || 0;
   };
 
-  const renderSearchBar = () => {
+  const orderStatuses: Array<OrderStatus | 'ALL'> = [
+    'ALL',
+    'PENDING',
+    'CONFIRMED',
+    'PROCESSING',
+    'SHIPPED',
+    'DELIVERED',
+    'CANCELLED',
+  ];
+
+  if (loading) {
     return (
-      <View style={styles.searchWrapper}>
-        <SearchBar
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          onClear={() => setSearchQuery('')}
-          placeholder={t('search_orders')}
-        />
-      </View>
+      <Box flex={1} bg="$backgroundLight" $dark-bg="$backgroundDark">
+        {/* Header */}
+        <Box px="$4" pt="$12" pb="$4">
+          <Heading size="xl" color="$textLight" $dark-color="$textDark">
+            {t('orders')}
+          </Heading>
+        </Box>
+
+        {/* Skeletons */}
+        <Box px="$4">
+          {[1, 2, 3].map((i) => (
+            <Box key={i} mb="$4">
+              <OrderCardSkeleton />
+            </Box>
+          ))}
+        </Box>
+      </Box>
     );
-  };
-
-  const renderFilterButton = () => {
-    const activeFiltersCount =
-      (selectedStatus !== 'ALL' ? 1 : 0) +
-      (selectedPaymentStatus !== 'ALL' ? 1 : 0);
-
-    return (
-      <TouchableOpacity
-        style={[styles.filterButton, { backgroundColor: colors.card }]}
-        onPress={() => {
-          haptics.light();
-          setShowFilters(!showFilters);
-        }}
-        hapticType="light"
-      >
-        <View style={styles.filterButtonLeft}>
-          <Text style={styles.filterIcon}>🔽</Text>
-          <Text style={[styles.filterButtonText, { color: '#FFFFFF' }]}>
-            Filter Orders
-          </Text>
-        </View>
-        {activeFiltersCount > 0 && (
-          <View style={[styles.activeFilterBadge, { backgroundColor: colors.primary }]}>
-            <Text style={styles.activeFilterBadgeText}>{activeFiltersCount}</Text>
-          </View>
-        )}
-        <Text style={[styles.filterArrow, { color: colors.textSecondary }]}>
-          {showFilters ? '▲' : '▼'}
-        </Text>
-      </TouchableOpacity>
-    );
-  };
-
-  const renderFilters = () => {
-    if (!showFilters) return null;
-
-    const paymentStatuses: Array<PaymentStatus | 'ALL'> = [
-      'ALL',
-      'PENDING',
-      'PAID',
-      'FAILED',
-      'REFUNDED',
-    ];
-
-    const orderStatuses: Array<OrderStatus | 'ALL'> = [
-      'ALL',
-      'PENDING',
-      'CONFIRMED',
-      'PROCESSING',
-      'SHIPPED',
-      'DELIVERED',
-      'CANCELLED',
-    ];
-
-    return (
-      <AnimatedCard index={0} style={[styles.filtersContainer, { backgroundColor: colors.card }]}>
-        {/* Payment Status Filter */}
-        <View style={styles.filterSection}>
-          <Text style={[styles.filterLabel, { color: colors.text }]}>
-            {t('payment_status')}
-          </Text>
-          <View style={styles.filterChipsContainer}>
-            {paymentStatuses.map((status) => {
-              const isSelected = selectedPaymentStatus === status;
-              const count = status === 'ALL'
-                ? orders.length
-                : orders.filter(o => o.paymentStatus === status).length;
-
-              return (
-                <TouchableOpacity
-                  key={status}
-                  style={[
-                    styles.filterChipSimple,
-                    {
-                      backgroundColor: isSelected ? colors.primary : colors.background,
-                      borderColor: colors.border,
-                    },
-                  ]}
-                  onPress={() => {
-                    haptics.selection();
-                    setSelectedPaymentStatus(status);
-                  }}
-                  haptic={false}
-                >
-                  <Text
-                    style={[
-                      styles.filterChipTextSimple,
-                      { color: isSelected ? '#FFFFFF' : colors.text },
-                    ]}
-                  >
-                    {status === 'ALL' ? t('all') : t(`payment_${status.toLowerCase()}`)}
-                  </Text>
-                  {count > 0 && (
-                    <Text
-                      style={[
-                        styles.filterChipCount,
-                        { color: isSelected ? '#FFFFFF' : colors.textSecondary },
-                      ]}
-                    >
-                      {count}
-                    </Text>
-                  )}
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </View>
-
-        {/* Order Status Filter */}
-        <View style={styles.filterSection}>
-          <Text style={[styles.filterLabel, { color: colors.text }]}>
-            {t('order_status')}
-          </Text>
-          <View style={styles.filterChipsContainer}>
-            {orderStatuses.map((status) => {
-              const isSelected = selectedStatus === status;
-              const count = status === 'ALL' ? orders.length : getStatCount(status);
-
-              return (
-                <TouchableOpacity
-                  key={status}
-                  style={[
-                    styles.filterChipSimple,
-                    {
-                      backgroundColor: isSelected ? colors.primary : colors.background,
-                      borderColor: colors.border,
-                    },
-                  ]}
-                  onPress={() => {
-                    haptics.selection();
-                    setSelectedStatus(status);
-                  }}
-                  haptic={false}
-                >
-                  <Text
-                    style={[
-                      styles.filterChipTextSimple,
-                      { color: isSelected ? '#FFFFFF' : colors.text },
-                    ]}
-                  >
-                    {t(`status_${status.toLowerCase()}`)}
-                  </Text>
-                  {count > 0 && (
-                    <Text
-                      style={[
-                        styles.filterChipCount,
-                        { color: isSelected ? '#FFFFFF' : colors.textSecondary },
-                      ]}
-                    >
-                      {count}
-                    </Text>
-                  )}
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </View>
-
-        {/* Reset Filters Button */}
-        {(selectedStatus !== 'ALL' || selectedPaymentStatus !== 'ALL') && (
-          <TouchableOpacity
-            style={[styles.resetFiltersButton, { backgroundColor: colors.error }]}
-            onPress={() => {
-              haptics.medium();
-              setSelectedStatus('ALL');
-              setSelectedPaymentStatus('ALL');
-            }}
-            hapticType="medium"
-          >
-            <Text style={styles.resetFiltersText}>{t('reset_filters')}</Text>
-          </TouchableOpacity>
-        )}
-      </AnimatedCard>
-    );
-  };
-
-  const renderOrderStatusModal = () => {
-    if (!selectedOrder) return null;
-
-    const statuses: OrderStatus[] = [
-      'PENDING',
-      'CONFIRMED',
-      'PROCESSING',
-      'SHIPPED',
-      'DELIVERED',
-      'CANCELLED',
-      'REFUNDED',
-    ];
-
-    return (
-      <Modal
-        visible={showOrderStatusModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => {
-          setShowOrderStatusModal(false);
-          setSelectedOrder(null);
-        }}
-      >
-        <RNTouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => {
-            setShowOrderStatusModal(false);
-            setSelectedOrder(null);
-          }}
-        >
-          <RNTouchableOpacity
-            activeOpacity={1}
-            onPress={(e) => e.stopPropagation()}
-          >
-            <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
-              <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: colors.text }]}>
-                {t('change_order_status')}
-              </Text>
-              <RNTouchableOpacity
-                onPress={() => {
-                  haptics.light();
-                  setShowOrderStatusModal(false);
-                  setSelectedOrder(null);
-                }}
-              >
-                <Text style={[styles.modalClose, { color: colors.textSecondary }]}>✕</Text>
-              </RNTouchableOpacity>
-            </View>
-            <ScrollView style={styles.modalScroll}>
-              {statuses.map((status) => {
-                const info = getOrderStatusInfo(status);
-                const isSelected = selectedOrder.status === status;
-
-                return (
-                  <RNTouchableOpacity
-                    key={status}
-                    style={[
-                      styles.modalOption,
-                      isSelected && { backgroundColor: `${info.color}15` },
-                      { borderBottomColor: colors.border },
-                    ]}
-                    onPress={() => {
-                      haptics.selection();
-                      handleStatusChange(selectedOrder.id, status);
-                    }}
-                    disabled={updating}
-                  >
-                    <Text style={[styles.modalOptionText, { color: colors.text }]}>
-                      {t(`status_${status.toLowerCase()}`)}
-                    </Text>
-                    {isSelected && (
-                      <Text style={{ fontSize: 20, color: info.color }}>✓</Text>
-                    )}
-                  </RNTouchableOpacity>
-                );
-              })}
-            </ScrollView>
-            </View>
-          </RNTouchableOpacity>
-        </RNTouchableOpacity>
-      </Modal>
-    );
-  };
-
-  const renderPaymentStatusModal = () => {
-    if (!selectedOrder) return null;
-
-    const statuses: PaymentStatus[] = ['PENDING', 'PAID', 'FAILED', 'REFUNDED'];
-
-    return (
-      <Modal
-        visible={showPaymentStatusModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => {
-          setShowPaymentStatusModal(false);
-          setSelectedOrder(null);
-        }}
-      >
-        <RNTouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => {
-            setShowPaymentStatusModal(false);
-            setSelectedOrder(null);
-          }}
-        >
-          <RNTouchableOpacity
-            activeOpacity={1}
-            onPress={(e) => e.stopPropagation()}
-          >
-            <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
-              <View style={styles.modalHeader}>
-                <Text style={[styles.modalTitle, { color: colors.text }]}>
-                  {t('change_payment_status')}
-                </Text>
-                <RNTouchableOpacity
-                  onPress={() => {
-                    haptics.light();
-                    setShowPaymentStatusModal(false);
-                    setSelectedOrder(null);
-                  }}
-                >
-                  <Text style={[styles.modalClose, { color: colors.textSecondary }]}>✕</Text>
-                </RNTouchableOpacity>
-              </View>
-              <ScrollView style={styles.modalScroll}>
-                {statuses.map((status) => {
-                  const info = getPaymentStatusInfo(status);
-                  const isSelected = selectedOrder.paymentStatus === status;
-
-                  return (
-                    <RNTouchableOpacity
-                      key={status}
-                      style={[
-                        styles.modalOption,
-                        isSelected && { backgroundColor: `${info.color}15` },
-                        { borderBottomColor: colors.border },
-                      ]}
-                      onPress={() => {
-                        haptics.selection();
-                        handlePaymentStatusChange(selectedOrder.id, status);
-                      }}
-                      disabled={updating}
-                    >
-                      <Text style={[styles.modalOptionText, { color: colors.text }]}>
-                        {t(`payment_${status.toLowerCase()}`)}
-                      </Text>
-                      {isSelected && (
-                        <Text style={{ fontSize: 20, color: info.color }}>✓</Text>
-                      )}
-                    </RNTouchableOpacity>
-                  );
-                })}
-              </ScrollView>
-            </View>
-          </RNTouchableOpacity>
-        </RNTouchableOpacity>
-      </Modal>
-    );
-  };
-
-  const renderOrderCard = (order: Order, index: number) => {
-    const formattedDate = new Date(order.createdAt).toLocaleDateString(currentLocale, {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
-
-    const formattedTime = new Date(order.createdAt).toLocaleTimeString(currentLocale, {
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-
-    return (
-      <AnimatedCard key={order.id} index={index} staggerDelay={50}>
-        <OrderCard
-          orderNumber={order.orderNumber}
-          date={formattedDate}
-          time={formattedTime}
-          customerName={order.customerName}
-          items={order.items.map((item) => ({
-            id: item.id,
-            productName: item.productName || item.name,
-            quantity: item.quantity,
-            price: item.price,
-          }))}
-          total={order.total}
-          currency={order.currency || 'SAR'}
-          orderStatus={order.status}
-          paymentStatus={order.paymentStatus || 'PENDING'}
-          onPress={() => router.push(`/orders/${order.id}`)}
-          onStatusPress={() => {
-            setSelectedOrder(order);
-            setShowOrderStatusModal(true);
-          }}
-          onPaymentPress={() => {
-            setSelectedOrder(order);
-            setShowPaymentStatusModal(true);
-          }}
-          showActions={false}
-          language={currentLocale}
-        />
-      </AnimatedCard>
-    );
-  };
+  }
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <LoadingOverlay visible={loading} message={t('loading_orders')} />
-
-      {/* Modals */}
-      {renderOrderStatusModal()}
-      {renderPaymentStatusModal()}
-
+    <Box flex={1} bg="$backgroundLight" $dark-bg="$backgroundDark">
       {/* Header */}
-      <View style={styles.headerContainer}>
-        <PageHeader
-          title={t('orders')}
-        />
-      </View>
+      <Box px="$4" pt="$12" pb="$4">
+        <Heading size="xl" color="$textLight" $dark-color="$textDark" mb="$4">
+          {t('orders')}
+        </Heading>
 
-      {/* Search Bar */}
-      {renderSearchBar()}
+        {/* Search Bar */}
+        <Input
+          variant="outline"
+          size="lg"
+          bg="$surfaceLight"
+          $dark-bg="$surfaceDark"
+          borderColor="$borderLight"
+          $dark-borderColor="$borderDark"
+          borderRadius="$xl"
+          $focus-borderColor="$primary500"
+        >
+          <InputSlot pl="$4">
+            <InputIcon as={Search} size="lg" color={colors.textSecondary} />
+          </InputSlot>
+          <InputField
+            placeholder={t('search_orders')}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            color="$textLight"
+            $dark-color="$textDark"
+          />
+          {searchQuery.length > 0 && (
+            <InputSlot pr="$4">
+              <Pressable onPress={() => {
+                setSearchQuery('');
+                haptics.light();
+              }}>
+                <InputIcon as={X} size="sm" color={colors.textSecondary} />
+              </Pressable>
+            </InputSlot>
+          )}
+        </Input>
 
-      {/* Filter Button */}
-      {renderFilterButton()}
+        {/* Filter Button */}
+        <HStack mt="$4" space="md" alignItems="center">
+          <Pressable
+            onPress={() => {
+              setShowFilterSheet(true);
+              haptics.light();
+            }}
+            flex={1}
+            p="$3"
+            borderRadius="$lg"
+            bg="$primary500"
+          >
+            <HStack space="sm" alignItems="center" justifyContent="center">
+              <Filter size={18} color="#FFFFFF" />
+              <Text fontSize="$sm" color="$white" fontWeight="$semibold">
+                {selectedStatus === 'ALL' ? 'All Orders' : t(`status_${selectedStatus.toLowerCase()}`)}
+              </Text>
+              {selectedStatus !== 'ALL' && (
+                <Badge action="success" variant="solid" size="sm" borderRadius="$full" ml="$2">
+                  <BadgeText fontSize="$2xs">1</BadgeText>
+                </Badge>
+              )}
+            </HStack>
+          </Pressable>
 
-      {/* Filters (collapsible) */}
-      {renderFilters()}
+          {selectedStatus !== 'ALL' && (
+            <Pressable
+              onPress={() => {
+                setSelectedStatus('ALL');
+                haptics.medium();
+              }}
+              p="$3"
+              borderRadius="$lg"
+              bg="$error500"
+            >
+              <X size={18} color="#FFFFFF" />
+            </Pressable>
+          )}
+        </HStack>
+      </Box>
 
       {/* Orders List */}
       <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
+        px="$4"
+        showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -616,343 +290,322 @@ export default function OrdersScreen() {
         }
       >
         {filteredOrders.length === 0 ? (
-          <EmptyState
-            icon={<Package size={48} color={colors.primary} strokeWidth={1.5} />}
-            title={t('no_orders_found')}
-            message={
-              searchQuery || selectedPaymentStatus !== 'ALL'
+          <Box
+            mt="$12"
+            alignItems="center"
+            justifyContent="center"
+          >
+            <Box
+              w={80}
+              h={80}
+              borderRadius="$full"
+              bg="$surfaceLight"
+              $dark-bg="$surfaceDark"
+              alignItems="center"
+              justifyContent="center"
+              mb="$4"
+            >
+              <Package size={40} color={colors.textSecondary} strokeWidth={1.5} />
+            </Box>
+            <Heading size="lg" color="$textLight" $dark-color="$textDark" mb="$2">
+              {t('no_orders_found')}
+            </Heading>
+            <Text fontSize="$sm" color="$textSecondaryLight" $dark-color="$textSecondaryDark" textAlign="center">
+              {searchQuery || selectedStatus !== 'ALL'
                 ? t('no_orders_match_filters')
-                : t('start_selling_to_see_orders')
-            }
-          />
+                : t('start_selling_to_see_orders')}
+            </Text>
+          </Box>
         ) : (
-          filteredOrders.map((order, index) => renderOrderCard(order, index))
+          <VStack space="md" pb="$24">
+            {filteredOrders.map((order, index) => {
+              const statusConfig = getStatusConfig(order.status);
+              const paymentConfig = getPaymentStatusConfig(order.paymentStatus || 'PENDING');
+              const StatusIcon = statusConfig.icon;
+
+              return (
+                <Pressable
+                  key={order.id}
+                  onPress={() => {
+                    haptics.light();
+                    router.push(`/orders/${order.id}`);
+                  }}
+                >
+                  <Card
+                    size="md"
+                    variant="elevated"
+                    bg="$cardLight"
+                    $dark-bg="$cardDark"
+                    mb="$3"
+                  >
+                    <VStack space="sm" p="$3">
+                      {/* Header: Order Number & Amount */}
+                      <HStack justifyContent="space-between" alignItems="center">
+                        <HStack space="xs" alignItems="center" flex={1}>
+                          <Text
+                            fontSize="$md"
+                            fontWeight="$bold"
+                            color="$textLight"
+                            $dark-color="$textDark"
+                          >
+                            #{order.orderNumber}
+                          </Text>
+                        </HStack>
+                        <Heading size="lg" color="$success600" $dark-color="$success400">
+                          {formatCurrency(order.total, order.currency || 'SAR', currentLocale)}
+                        </Heading>
+                      </HStack>
+
+                      {/* Customer Info */}
+                      <HStack space="xs" alignItems="center">
+                        <Box
+                          w={32}
+                          h={32}
+                          borderRadius="$full"
+                          bg="$primary100"
+                          $dark-bg="$primary950"
+                          alignItems="center"
+                          justifyContent="center"
+                        >
+                          <User size={16} color={colors.primary500} strokeWidth={2} />
+                        </Box>
+                        <VStack flex={1}>
+                          <Text
+                            fontSize="$sm"
+                            fontWeight="$semibold"
+                            color="$textLight"
+                            $dark-color="$textDark"
+                            numberOfLines={1}
+                          >
+                            {order.customerName}
+                          </Text>
+                          {order.customerPhone && (
+                            <Text
+                              fontSize="$xs"
+                              color="$textSecondaryLight"
+                              $dark-color="$textSecondaryDark"
+                            >
+                              {order.customerPhone}
+                            </Text>
+                          )}
+                        </VStack>
+                      </HStack>
+
+                      {/* Status Cards */}
+                      <HStack space="xs">
+                        {/* Order Status */}
+                        <Box
+                          flex={1}
+                          p="$2"
+                          borderRadius="$lg"
+                          bg={statusConfig.color}
+                        >
+                          <HStack space="xs" alignItems="center">
+                            <Box
+                              w={28}
+                              h={28}
+                              borderRadius="$full"
+                              bg="rgba(255, 255, 255, 0.25)"
+                              alignItems="center"
+                              justifyContent="center"
+                            >
+                              <StatusIcon size={14} color="#FFFFFF" strokeWidth={2.5} />
+                            </Box>
+                            <VStack flex={1}>
+                              <Text fontSize="$2xs" color="rgba(255, 255, 255, 0.8)" fontWeight="$medium">
+                                Status
+                              </Text>
+                              <Text fontSize="$xs" color="$white" fontWeight="$bold" numberOfLines={1}>
+                                {t(`status_${order.status.toLowerCase()}`)}
+                              </Text>
+                            </VStack>
+                          </HStack>
+                        </Box>
+
+                        {/* Payment Status */}
+                        <Box
+                          flex={1}
+                          p="$2"
+                          borderRadius="$lg"
+                          bg={paymentConfig.color}
+                        >
+                          <HStack space="xs" alignItems="center">
+                            <Box
+                              w={28}
+                              h={28}
+                              borderRadius="$full"
+                              bg="rgba(255, 255, 255, 0.25)"
+                              alignItems="center"
+                              justifyContent="center"
+                            >
+                              <DollarSign size={14} color="#FFFFFF" strokeWidth={2.5} />
+                            </Box>
+                            <VStack flex={1}>
+                              <Text fontSize="$2xs" color="rgba(255, 255, 255, 0.8)" fontWeight="$medium">
+                                Payment
+                              </Text>
+                              <Text fontSize="$xs" color="$white" fontWeight="$bold" numberOfLines={1}>
+                                {t(`payment_${(order.paymentStatus || 'PENDING').toLowerCase()}`)}
+                              </Text>
+                            </VStack>
+                          </HStack>
+                        </Box>
+                      </HStack>
+
+                      {/* Footer: Date & Items */}
+                      <HStack justifyContent="space-between" alignItems="center">
+                        <HStack space="xs" alignItems="center" flex={1}>
+                          <Clock size={12} color={colors.textSecondary} />
+                          <Text
+                            fontSize="$2xs"
+                            color="$textSecondaryLight"
+                            $dark-color="$textSecondaryDark"
+                            numberOfLines={1}
+                          >
+                            {new Date(order.createdAt).toLocaleDateString(currentLocale, {
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </Text>
+                        </HStack>
+
+                        <HStack space="xs" alignItems="center">
+                          <Package size={12} color={colors.textSecondary} />
+                          <Text
+                            fontSize="$2xs"
+                            color="$textSecondaryLight"
+                            $dark-color="$textSecondaryDark"
+                            fontWeight="$medium"
+                          >
+                            {order.items.length} items
+                          </Text>
+                        </HStack>
+
+                        <ChevronRight size={16} color={colors.primary500} strokeWidth={2.5} />
+                      </HStack>
+                    </VStack>
+                  </Card>
+                </Pressable>
+              );
+            })}
+          </VStack>
         )}
       </ScrollView>
-    </View>
+
+      {/* Simple Filter Menu */}
+      <Actionsheet isOpen={showFilterSheet} onClose={() => setShowFilterSheet(false)} zIndex={999}>
+        <ActionsheetBackdrop />
+        <ActionsheetContent zIndex={999} bg="$cardLight" $dark-bg="$cardDark">
+          <ActionsheetDragIndicatorWrapper>
+            <ActionsheetDragIndicator />
+          </ActionsheetDragIndicatorWrapper>
+
+          <VStack w="$full" py="$2" px="$4" space="md">
+            {/* All Orders Option - Full Width */}
+            <Pressable
+              onPress={() => {
+                setSelectedStatus('ALL');
+                setShowFilterSheet(false);
+                haptics.selection();
+              }}
+            >
+              <HStack
+                px="$3"
+                py="$3"
+                justifyContent="space-between"
+                alignItems="center"
+                bg={selectedStatus === 'ALL' ? '$primary500' : '$surfaceLight'}
+                $dark-bg={selectedStatus === 'ALL' ? '$primary500' : '$surfaceDark'}
+                borderRadius="$lg"
+              >
+                <HStack space="sm" alignItems="center" flex={1}>
+                  <Package
+                    size={18}
+                    color={selectedStatus === 'ALL' ? '#FFFFFF' : colors.text}
+                    strokeWidth={2.5}
+                  />
+                  <Text
+                    fontSize="$sm"
+                    fontWeight="$bold"
+                    color={selectedStatus === 'ALL' ? '$white' : '$textLight'}
+                    $dark-color={selectedStatus === 'ALL' ? '$white' : '$textDark'}
+                  >
+                    All Orders
+                  </Text>
+                </HStack>
+                <Badge
+                  action={selectedStatus === 'ALL' ? 'success' : 'muted'}
+                  variant="solid"
+                  size="sm"
+                  borderRadius="$full"
+                >
+                  <BadgeText fontSize="$2xs">{orders.length}</BadgeText>
+                </Badge>
+              </HStack>
+            </Pressable>
+
+            {/* Status Options - 2 Columns Grid */}
+            <HStack space="sm" flexWrap="wrap" justifyContent="space-between">
+              {orderStatuses.filter(s => s !== 'ALL').map((status) => {
+                const isSelected = selectedStatus === status;
+                const count = getStatCount(status);
+                const statusConfig = getStatusConfig(status);
+                const StatusIcon = statusConfig.icon;
+
+                return (
+                  <Pressable
+                    key={status}
+                    onPress={() => {
+                      setSelectedStatus(status);
+                      setShowFilterSheet(false);
+                      haptics.selection();
+                    }}
+                    w="48%"
+                    mb="$2"
+                  >
+                    <Box
+                      px="$2.5"
+                      py="$2.5"
+                      bg={isSelected ? statusConfig.color : '$surfaceLight'}
+                      $dark-bg={isSelected ? statusConfig.color : '$surfaceDark'}
+                      borderRadius="$lg"
+                    >
+                      <VStack space="xs">
+                        <HStack justifyContent="space-between" alignItems="center">
+                          <StatusIcon
+                            size={18}
+                            color={isSelected ? '#FFFFFF' : colors[statusConfig.color.replace('$', '') as keyof typeof colors]}
+                            strokeWidth={2.5}
+                          />
+                          <Badge
+                            action={isSelected ? 'success' : 'muted'}
+                            variant="solid"
+                            size="sm"
+                            borderRadius="$full"
+                          >
+                            <BadgeText fontSize="$2xs">{count}</BadgeText>
+                          </Badge>
+                        </HStack>
+                        <Text
+                          fontSize="$xs"
+                          fontWeight={isSelected ? '$bold' : '$semibold'}
+                          color={isSelected ? '$white' : '$textLight'}
+                          $dark-color={isSelected ? '$white' : '$textDark'}
+                          numberOfLines={1}
+                        >
+                          {t(`status_${status.toLowerCase()}`)}
+                        </Text>
+                      </VStack>
+                    </Box>
+                  </Pressable>
+                );
+              })}
+            </HStack>
+          </VStack>
+        </ActionsheetContent>
+      </Actionsheet>
+    </Box>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  headerContainer: {
-    marginTop: spacing.m,
-  },
-  centerContent: {
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: spacing.m,
-    fontSize: 16,
-  },
-  // Modal
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: '70%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 5,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: spacing.m,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  modalClose: {
-    fontSize: 24,
-    fontWeight: '600',
-  },
-  modalScroll: {
-    maxHeight: 400,
-  },
-  modalOption: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: spacing.m,
-    borderBottomWidth: 1,
-  },
-  modalOptionText: {
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  // Search Bar
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginHorizontal: spacing.m,
-    marginTop: spacing.s,
-    marginBottom: spacing.m,
-    paddingHorizontal: spacing.m,
-    paddingVertical: spacing.s,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  searchIcon: {
-    fontSize: 18,
-    marginRight: spacing.s,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 16,
-    paddingVertical: spacing.xs,
-  },
-  clearButton: {
-    padding: spacing.xs,
-  },
-  clearIcon: {
-    fontSize: 18,
-    color: '#9CA3AF',
-  },
-  // Filter Button
-  filterButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginHorizontal: spacing.m,
-    marginBottom: spacing.m,
-    paddingHorizontal: spacing.m,
-    paddingVertical: spacing.m,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  filterButtonLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.s,
-    flex: 1,
-  },
-  filterIcon: {
-    fontSize: 18,
-  },
-  filterButtonText: {
-    fontSize: 18,
-    fontWeight: '600',
-    flexShrink: 0,
-    minWidth: 120,
-  },
-  activeFilterBadge: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: spacing.s,
-  },
-  activeFilterBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  filterArrow: {
-    fontSize: 14,
-    marginLeft: spacing.s,
-  },
-  // Filters Container
-  filtersContainer: {
-    marginHorizontal: spacing.m,
-    marginBottom: spacing.m,
-    padding: spacing.m,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  filterSection: {
-    marginBottom: spacing.m,
-  },
-  filterLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: spacing.s,
-  },
-  filterChipsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.s,
-  },
-  filterChipSimple: {
-    paddingHorizontal: spacing.m,
-    paddingVertical: spacing.s,
-    borderRadius: 8,
-    borderWidth: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-  },
-  filterChipTextSimple: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  filterChipCount: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  resetFiltersButton: {
-    paddingVertical: spacing.s,
-    paddingHorizontal: spacing.m,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: spacing.s,
-  },
-  resetFiltersText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: spacing.m,
-  },
-  orderCard: {
-    borderRadius: 12,
-    padding: spacing.m,
-    marginBottom: spacing.m,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  orderHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: spacing.m,
-  },
-  orderHeaderLeft: {
-    flex: 1,
-  },
-  orderHeaderRight: {
-    alignItems: 'flex-end',
-  },
-  orderNumber: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 4,
-  },
-  orderDate: {
-    fontSize: 12,
-  },
-  orderTotal: {
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  customerInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: spacing.m,
-    gap: spacing.xs,
-  },
-  customerName: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  customerPhone: {
-    fontSize: 12,
-  },
-  orderItems: {
-    marginBottom: spacing.m,
-  },
-  orderItem: {
-    marginBottom: spacing.xs,
-  },
-  itemName: {
-    fontSize: 14,
-  },
-  itemQuantity: {
-    fontSize: 12,
-    marginTop: 2,
-  },
-  moreItems: {
-    fontSize: 12,
-    fontStyle: 'italic',
-    marginTop: spacing.xs,
-  },
-  orderFooter: {
-    flexDirection: 'row',
-    gap: spacing.s,
-    marginBottom: spacing.m,
-  },
-  statusBadgeContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.s,
-    paddingVertical: spacing.xs,
-    borderRadius: 8,
-    gap: 4,
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  paymentBadgeContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.s,
-    paddingVertical: spacing.xs,
-    borderRadius: 8,
-    gap: 4,
-  },
-  paymentText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  quickActions: {
-    flexDirection: 'row',
-    gap: spacing.s,
-  },
-  actionButton: {
-    flex: 1,
-    paddingVertical: spacing.s,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  actionButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  emptyState: {
-    padding: spacing.xxl,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: spacing.xl,
-  },
-  emptyStateText: {
-    fontSize: 16,
-    marginTop: spacing.m,
-    textAlign: 'center',
-  },
-});
