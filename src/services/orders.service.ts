@@ -25,6 +25,8 @@ export interface Order {
   status: OrderStatus;
   paymentStatus: PaymentStatus;
   paymentMethod: PaymentMethod;
+  paymentDetails?: any;
+  paymentInfo?: any;
   total: number;
   subtotal: number;
   shippingCost: number;

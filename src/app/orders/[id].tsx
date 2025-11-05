@@ -8,6 +8,7 @@ import {
   Alert,
   Image,
   Modal,
+  Linking,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -17,6 +18,7 @@ import { AnimatedCard } from '@/components/ui/AnimatedCard';
 import { haptics } from '@/utils/haptics';
 import { spacing } from '@/theme/spacing';
 import { formatCurrency } from '@/utils/currency';
+import * as Print from 'expo-print';
 import {
   Box,
   HStack,
@@ -41,6 +43,8 @@ import {
   AlertCircle,
   Package,
   ArrowLeft,
+  ExternalLink,
+  Printer,
 } from 'lucide-react-native';
 import {
   getOrder,
@@ -146,6 +150,373 @@ export default function OrderDetailsScreen() {
       Alert.alert(t('error'), t('failed_to_update_payment_status'));
     } finally {
       setUpdating(false);
+    }
+  };
+
+  const handlePrintOrder = async () => {
+    if (!order) return;
+
+    try {
+      haptics.light();
+
+      const merchantCurrency = order.currency || 'SAR';
+
+      // Generate HTML for printing
+      const html = `
+        <html>
+          <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no" />
+            <style>
+              body {
+                font-family: 'Arial', sans-serif;
+                padding: 20px;
+                color: #333;
+              }
+              .header {
+                text-align: center;
+                margin-bottom: 30px;
+                border-bottom: 2px solid #333;
+                padding-bottom: 20px;
+              }
+              .header h1 {
+                margin: 0;
+                font-size: 24px;
+                font-weight: bold;
+              }
+              .header p {
+                margin: 5px 0;
+                color: #666;
+              }
+              .section {
+                margin-bottom: 20px;
+              }
+              .section-title {
+                font-size: 16px;
+                font-weight: bold;
+                margin-bottom: 10px;
+                border-bottom: 1px solid #ddd;
+                padding-bottom: 5px;
+              }
+              .info-row {
+                display: flex;
+                justify-content: space-between;
+                padding: 5px 0;
+              }
+              .label {
+                font-weight: 600;
+                color: #555;
+              }
+              .value {
+                color: #333;
+              }
+              .status-badge {
+                display: inline-block;
+                padding: 5px 15px;
+                border-radius: 5px;
+                font-weight: bold;
+                font-size: 12px;
+              }
+              .status-pending { background-color: #FEF3C7; color: #92400E; }
+              .status-confirmed { background-color: #DBEAFE; color: #1E3A8A; }
+              .status-processing { background-color: #E9D5FF; color: #5B21B6; }
+              .status-shipped { background-color: #DBEAFE; color: #1E40AF; }
+              .status-delivered { background-color: #D1FAE5; color: #065F46; }
+              .status-cancelled { background-color: #FEE2E2; color: #991B1B; }
+              .status-refunded { background-color: #FEE2E2; color: #991B1B; }
+              .payment-pending { background-color: #FEF3C7; color: #92400E; }
+              .payment-paid { background-color: #D1FAE5; color: #065F46; }
+              .payment-failed { background-color: #FEE2E2; color: #991B1B; }
+              .payment-refunded { background-color: #FEE2E2; color: #991B1B; }
+              table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-top: 10px;
+              }
+              th {
+                background-color: #f3f4f6;
+                padding: 10px;
+                text-align: left;
+                font-weight: 600;
+                border-bottom: 2px solid #ddd;
+              }
+              td {
+                padding: 10px;
+                border-bottom: 1px solid #eee;
+              }
+              .total-section {
+                margin-top: 20px;
+                text-align: right;
+              }
+              .total-row {
+                display: flex;
+                justify-content: flex-end;
+                padding: 5px 0;
+              }
+              .total-label {
+                min-width: 150px;
+                text-align: right;
+                padding-right: 20px;
+                font-weight: 600;
+              }
+              .total-value {
+                min-width: 120px;
+                text-align: right;
+              }
+              .grand-total {
+                font-size: 18px;
+                font-weight: bold;
+                border-top: 2px solid #333;
+                padding-top: 10px;
+                margin-top: 10px;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h1>Order Details</h1>
+              <p>Order Number: ${order.orderNumber}</p>
+              <p>Date: ${new Date(order.createdAt).toLocaleDateString(currentLocale, {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+              })}</p>
+            </div>
+
+            <div class="section">
+              <div class="section-title">Status</div>
+              <div class="info-row">
+                <span class="label">Order Status:</span>
+                <span class="status-badge status-${order.status.toLowerCase()}">${t(`status_${order.status.toLowerCase()}`)}</span>
+              </div>
+              <div class="info-row">
+                <span class="label">Payment Status:</span>
+                <span class="status-badge payment-${order.paymentStatus.toLowerCase()}">${t(`payment_${order.paymentStatus.toLowerCase()}`)}</span>
+              </div>
+            </div>
+
+            <div class="section">
+              <div class="section-title">Customer Information</div>
+              <div class="info-row">
+                <span class="label">Name:</span>
+                <span class="value">${order.customerName}</span>
+              </div>
+              ${order.customerEmail ? `
+              <div class="info-row">
+                <span class="label">Email:</span>
+                <span class="value">${order.customerEmail}</span>
+              </div>
+              ` : ''}
+              ${order.customerPhone ? `
+              <div class="info-row">
+                <span class="label">Phone:</span>
+                <span class="value">${order.customerPhone}</span>
+              </div>
+              ` : ''}
+              ${(order.customerInfo?.street || order.customerInfo?.city) ? `
+              <div class="info-row">
+                <span class="label">Address:</span>
+                <span class="value">
+                  ${order.customerInfo.street || ''}${order.customerInfo.city ? `, ${order.customerInfo.city}` : ''}
+                </span>
+              </div>
+              ` : ''}
+            </div>
+
+            <div class="section">
+              <div class="section-title">Payment Details</div>
+              <div class="info-row">
+                <span class="label">Payment Method:</span>
+                <span class="value">${order.paymentMethod}</span>
+              </div>
+              ${(order as any).paypalOrderId ? `
+              <div class="info-row">
+                <span class="label">PayPal Order ID:</span>
+                <span class="value">${(order as any).paypalOrderId}</span>
+              </div>
+              ` : ''}
+              ${(order as any).paypalTransactionId ? `
+              <div class="info-row">
+                <span class="label">PayPal Transaction ID:</span>
+                <span class="value">${(order as any).paypalTransactionId}</span>
+              </div>
+              ` : ''}
+              ${(order as any).paypalPayerEmail ? `
+              <div class="info-row">
+                <span class="label">PayPal Email:</span>
+                <span class="value">${(order as any).paypalPayerEmail}</span>
+              </div>
+              ` : ''}
+              ${(order as any).stripePaymentIntentId ? `
+              <div class="info-row">
+                <span class="label">Stripe Payment Intent:</span>
+                <span class="value">${(order as any).stripePaymentIntentId}</span>
+              </div>
+              ` : ''}
+              ${(order as any).stripeChargeId ? `
+              <div class="info-row">
+                <span class="label">Stripe Charge ID:</span>
+                <span class="value">${(order as any).stripeChargeId}</span>
+              </div>
+              ` : ''}
+              ${(order as any).stripeCustomerEmail ? `
+              <div class="info-row">
+                <span class="label">Stripe Email:</span>
+                <span class="value">${(order as any).stripeCustomerEmail}</span>
+              </div>
+              ` : ''}
+              ${(order as any).paymentReceiptUrl ? `
+              <div class="info-row">
+                <span class="label">Payment Receipt:</span>
+                <span class="value">${(order as any).paymentReceiptUrl}</span>
+              </div>
+              ` : ''}
+            </div>
+
+            ${order.shippingAddress ? `
+            <div class="section">
+              <div class="section-title">Shipping Address</div>
+              <div class="info-row">
+                <span class="value">
+                  ${order.shippingAddress.street || ''}<br/>
+                  ${order.shippingAddress.city || ''}, ${order.shippingAddress.state || ''} ${order.shippingAddress.postalCode || ''}<br/>
+                  ${order.shippingAddress.country || ''}
+                </span>
+              </div>
+            </div>
+            ` : ''}
+
+            ${(order.trackingNumber || order.trackingToken) ? `
+            <div class="section">
+              <div class="section-title">Tracking Information</div>
+              ${order.trackingNumber ? `
+              <div class="info-row">
+                <span class="label">Tracking Number:</span>
+                <span class="value">${order.trackingNumber}</span>
+              </div>
+              ` : ''}
+              ${order.trackingToken ? `
+              <div class="info-row">
+                <span class="label">Tracking URL:</span>
+                <span class="value">https://shop.my-store.ai/track/${order.trackingToken}</span>
+              </div>
+              ` : ''}
+            </div>
+            ` : ''}
+
+            <div class="section">
+              <div class="section-title">Order Items</div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Product</th>
+                    <th>Quantity</th>
+                    <th>Price</th>
+                    <th>Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${order.items.map((item) => {
+                    // Parse productData if it's a string
+                    let productData = item.productData;
+                    if (typeof productData === 'string') {
+                      try {
+                        productData = JSON.parse(productData);
+                      } catch (e) {
+                        productData = null;
+                      }
+                    }
+
+                    // Get variant name from selectedVariants
+                    const variantName = productData?.selectedVariants
+                      ? Object.entries(productData.selectedVariants)
+                          .map(([key, value]) => `${value}`)
+                          .join(' - ')
+                      : '';
+
+                    return `
+                    <tr>
+                      <td>
+                        ${item.productName}
+                        ${variantName ? `<br/><small style="color: #666; font-style: italic;">${variantName}</small>` : ''}
+                        ${item.sku ? `<br/><small style="color: #999;">SKU: ${item.sku}</small>` : ''}
+                      </td>
+                      <td>${item.quantity}</td>
+                      <td>${formatCurrency(item.price, merchantCurrency, currentLocale)}</td>
+                      <td>${formatCurrency(item.total, merchantCurrency, currentLocale)}</td>
+                    </tr>
+                    `;
+                  }).join('')}
+                </tbody>
+              </table>
+            </div>
+
+            <div class="total-section">
+              <div class="total-row">
+                <span class="total-label">Subtotal:</span>
+                <span class="total-value">${formatCurrency(order.subtotal, merchantCurrency, currentLocale)}</span>
+              </div>
+              ${order.shippingCost > 0 ? `
+              <div class="total-row">
+                <span class="total-label">Shipping:</span>
+                <span class="total-value">${formatCurrency(order.shippingCost, merchantCurrency, currentLocale)}</span>
+              </div>
+              ` : ''}
+              ${order.tax && order.tax > 0 ? `
+              <div class="total-row">
+                <span class="total-label">Tax:</span>
+                <span class="total-value">${formatCurrency(order.tax, merchantCurrency, currentLocale)}</span>
+              </div>
+              ` : ''}
+              ${order.discount && order.discount > 0 ? `
+              <div class="total-row">
+                <span class="total-label">Discount:</span>
+                <span class="total-value">-${formatCurrency(order.discount, merchantCurrency, currentLocale)}</span>
+              </div>
+              ` : ''}
+              <div class="total-row grand-total">
+                <span class="total-label">Total:</span>
+                <span class="total-value">${formatCurrency(order.total, merchantCurrency, currentLocale)}</span>
+              </div>
+            </div>
+
+            ${order.notes || order.customerNotes ? `
+            <div class="section">
+              <div class="section-title">Notes</div>
+              ${order.notes ? `
+              <div class="info-row">
+                <span class="label">Merchant Notes:</span>
+                <span class="value">${order.notes}</span>
+              </div>
+              ` : ''}
+              ${order.customerNotes ? `
+              <div class="info-row">
+                <span class="label">Customer Notes:</span>
+                <span class="value">${order.customerNotes}</span>
+              </div>
+              ` : ''}
+            </div>
+            ` : ''}
+          </body>
+        </html>
+      `;
+
+      const result = await Print.printAsync({
+        html,
+      });
+
+      // Only show success if printing actually completed
+      if (result) {
+        haptics.success();
+      }
+    } catch (error: any) {
+      // Only show error if it's not a user cancellation
+      if (error?.message && !error.message.includes('did not complete')) {
+        console.error('Print error:', error);
+        haptics.error();
+        Alert.alert(t('error'), t('failed_to_print') || 'Failed to print order details');
+      }
     }
   };
 
@@ -403,6 +774,19 @@ export default function OrderDetailsScreen() {
               {order.orderNumber}
             </GText>
           </VStack>
+
+          {/* Print Button */}
+          <Pressable
+            onPress={handlePrintOrder}
+            w={40}
+            h={40}
+            borderRadius="$full"
+            bg="$primary500"
+            alignItems="center"
+            justifyContent="center"
+          >
+            <Printer size={20} color="#FFFFFF" strokeWidth={2.5} />
+          </Pressable>
         </HStack>
 
         {/* Date */}
@@ -555,38 +939,209 @@ export default function OrderDetailsScreen() {
               </Text>
             </View>
           </View>
+          {(order.customerInfo?.street || order.customerInfo?.city) && (
+            <View style={styles.infoRow}>
+              <Text style={{ fontSize: 20 }}>📍</Text>
+              <View style={styles.infoContent}>
+                <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
+                  {t('customer_address')}
+                </Text>
+                <Text style={[styles.infoValue, { color: colors.text }]}>
+                  {order.customerInfo.street}
+                  {order.customerInfo.city && `, ${order.customerInfo.city}`}
+                </Text>
+              </View>
+            </View>
+          )}
+        </AnimatedCard>
+
+        {/* Payment Details */}
+        <AnimatedCard index={3} style={[styles.section, { backgroundColor: colors.surface }]}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>
+            {t('payment_details')}
+          </Text>
+          <View style={styles.infoRow}>
+            <Text style={{ fontSize: 20 }}>💳</Text>
+            <View style={styles.infoContent}>
+              <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
+                {t('payment_method')}
+              </Text>
+              <Text style={[styles.infoValue, { color: colors.text }]}>
+                {order.paymentMethod}
+              </Text>
+            </View>
+          </View>
+
+          {/* PayPal Transaction Details */}
+          {(order as any).paypalOrderId && (
+            <View style={styles.infoRow}>
+              <Text style={{ fontSize: 20 }}>💰</Text>
+              <View style={styles.infoContent}>
+                <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
+                  PayPal Order ID
+                </Text>
+                <Text style={[styles.infoValue, { color: colors.text }]}>
+                  {(order as any).paypalOrderId}
+                </Text>
+              </View>
+            </View>
+          )}
+          {(order as any).paypalTransactionId && (
+            <View style={styles.infoRow}>
+              <Text style={{ fontSize: 20 }}>🧾</Text>
+              <View style={styles.infoContent}>
+                <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
+                  PayPal Transaction ID
+                </Text>
+                <Text style={[styles.infoValue, { color: colors.text }]}>
+                  {(order as any).paypalTransactionId}
+                </Text>
+              </View>
+            </View>
+          )}
+          {(order as any).paypalPayerEmail && (
+            <View style={styles.infoRow}>
+              <Text style={{ fontSize: 20 }}>📧</Text>
+              <View style={styles.infoContent}>
+                <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
+                  PayPal Email
+                </Text>
+                <Text style={[styles.infoValue, { color: colors.text }]}>
+                  {(order as any).paypalPayerEmail}
+                </Text>
+              </View>
+            </View>
+          )}
+
+          {/* Stripe Payment Details */}
+          {(order as any).stripePaymentIntentId && (
+            <View style={styles.infoRow}>
+              <Text style={{ fontSize: 20 }}>💳</Text>
+              <View style={styles.infoContent}>
+                <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
+                  Stripe Payment Intent
+                </Text>
+                <Text style={[styles.infoValue, { color: colors.text }]}>
+                  {(order as any).stripePaymentIntentId}
+                </Text>
+              </View>
+            </View>
+          )}
+          {(order as any).stripeChargeId && (
+            <View style={styles.infoRow}>
+              <Text style={{ fontSize: 20 }}>🧾</Text>
+              <View style={styles.infoContent}>
+                <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
+                  Stripe Charge ID
+                </Text>
+                <Text style={[styles.infoValue, { color: colors.text }]}>
+                  {(order as any).stripeChargeId}
+                </Text>
+              </View>
+            </View>
+          )}
+          {(order as any).stripeCustomerEmail && (
+            <View style={styles.infoRow}>
+              <Text style={{ fontSize: 20 }}>📧</Text>
+              <View style={styles.infoContent}>
+                <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
+                  Stripe Email
+                </Text>
+                <Text style={[styles.infoValue, { color: colors.text }]}>
+                  {(order as any).stripeCustomerEmail}
+                </Text>
+              </View>
+            </View>
+          )}
+
+          {/* Payment Receipt Image */}
+          {(order as any).paymentReceiptUrl && (
+            <View style={styles.infoRow}>
+              <Text style={{ fontSize: 20 }}>🖼️</Text>
+              <View style={styles.infoContent}>
+                <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
+                  {t('payment_receipt')}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    haptics.light();
+                    Linking.openURL((order as any).paymentReceiptUrl).catch((err) => {
+                      console.error('Failed to open receipt URL:', err);
+                      Alert.alert(t('error'), 'Failed to open receipt');
+                    });
+                  }}
+                  hapticType="light"
+                >
+                  <Image
+                    source={{ uri: (order as any).paymentReceiptUrl }}
+                    style={{
+                      width: '100%',
+                      height: 200,
+                      borderRadius: 8,
+                      marginTop: 8,
+                    }}
+                    resizeMode="contain"
+                  />
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
         </AnimatedCard>
 
         {/* Order Items */}
-        <AnimatedCard index={3} style={[styles.section, { backgroundColor: colors.surface }]}>
+        <AnimatedCard index={4} style={[styles.section, { backgroundColor: colors.surface }]}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>
             {t('order_items')}
           </Text>
-          {order.items?.map((item, index) => (
-            <View
-              key={item.id}
-              style={[
-                styles.itemRow,
-                index < order.items.length - 1 && {
-                  borderBottomWidth: 1,
-                  borderBottomColor: colors.border,
-                },
-              ]}
-            >
-              {item.productImage ? (
-                <Image source={{ uri: item.productImage }} style={styles.itemImage} />
-              ) : (
-                <View style={[styles.itemImagePlaceholder, { backgroundColor: colors.background }]}>
-                  <Text style={{ fontSize: 24 }}>📦</Text>
-                </View>
-              )}
-              <View style={styles.itemInfo}>
-                <Text style={[styles.itemName, { color: colors.text }]}>
-                  {item.productName || item.name}
-                </Text>
-                {item.sku && (
-                  <Text style={[styles.itemSku, { color: colors.textSecondary }]}>
-                    SKU: {item.sku}
+          {order.items?.map((item, index) => {
+            // Parse productData if it's a string
+            let productData = item.productData;
+            if (typeof productData === 'string') {
+              try {
+                productData = JSON.parse(productData);
+              } catch (e) {
+                console.error('Failed to parse productData:', e);
+                productData = null;
+              }
+            }
+
+            // Get variant name from selectedVariants
+            const variantName = productData?.selectedVariants
+              ? Object.entries(productData.selectedVariants)
+                  .map(([key, value]) => `${value}`)
+                  .join(' - ')
+              : null;
+
+            return (
+              <View
+                key={item.id}
+                style={[
+                  styles.itemRow,
+                  index < order.items.length - 1 && {
+                    borderBottomWidth: 1,
+                    borderBottomColor: colors.border,
+                  },
+                ]}
+              >
+                {item.productImage ? (
+                  <Image source={{ uri: item.productImage }} style={styles.itemImage} />
+                ) : (
+                  <View style={[styles.itemImagePlaceholder, { backgroundColor: colors.background }]}>
+                    <Text style={{ fontSize: 24 }}>📦</Text>
+                  </View>
+                )}
+                <View style={styles.itemInfo}>
+                  <Text style={[styles.itemName, { color: colors.text }]}>
+                    {item.productName || item.name}
+                  </Text>
+                  {item.sku && (
+                    <Text style={[styles.itemSku, { color: colors.textSecondary }]}>
+                      SKU: {item.sku}
+                    </Text>
+                  )}
+                  {variantName && (
+                    <Text style={[styles.itemVariant, { color: colors.textSecondary, fontStyle: 'italic' }]}>
+                      {variantName}
                   </Text>
                 )}
                 <View style={styles.itemPriceRow}>
@@ -602,11 +1157,12 @@ export default function OrderDetailsScreen() {
                 {formatCurrency(item.total, order.currency || 'SAR', currentLocale)}
               </Text>
             </View>
-          ))}
+          );
+          })}
         </AnimatedCard>
 
         {/* Order Summary */}
-        <AnimatedCard index={4} style={[styles.section, { backgroundColor: colors.surface }]}>
+        <AnimatedCard index={5} style={[styles.section, { backgroundColor: colors.surface }]}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>
             {t('order_summary')}
           </Text>
@@ -658,38 +1214,48 @@ export default function OrderDetailsScreen() {
           </View>
         </AnimatedCard>
 
-        {/* Shipping Address */}
-        {order.shippingAddress && (
-          <AnimatedCard index={5} style={[styles.section, { backgroundColor: colors.surface }]}>
+        {/* Tracking Info */}
+        {(order.trackingNumber || order.trackingToken) && (
+          <AnimatedCard index={6} style={[styles.section, { backgroundColor: colors.surface }]}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              {t('shipping_address')}
+              {t('tracking_info')}
             </Text>
-            <View style={styles.infoRow}>
-              <Text style={{ fontSize: 20 }}>📍</Text>
-              <View style={styles.infoContent}>
-                <Text style={[styles.infoValue, { color: colors.text }]}>
-                  {order.shippingAddress.address}
-                </Text>
-                {order.shippingAddress.city && (
+            {order.trackingNumber && (
+              <View style={styles.infoRow}>
+                <Text style={{ fontSize: 20 }}>📦</Text>
+                <View style={styles.infoContent}>
                   <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
-                    {order.shippingAddress.city}
-                    {order.shippingAddress.state && `, ${order.shippingAddress.state}`}
-                    {order.shippingAddress.postalCode && ` ${order.shippingAddress.postalCode}`}
+                    {t('tracking_number')}
                   </Text>
-                )}
-                {order.shippingAddress.country && (
-                  <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>
-                    {order.shippingAddress.country}
+                  <Text style={[styles.infoValue, { color: colors.text }]}>
+                    {order.trackingNumber}
                   </Text>
-                )}
+                </View>
               </View>
-            </View>
+            )}
+            {order.trackingToken && (
+              <TouchableOpacity
+                style={[styles.trackingButton, { backgroundColor: colors.primary }]}
+                onPress={() => {
+                  haptics.light();
+                  const trackingUrl = `https://shop.my-store.ai/track/${order.trackingToken}`;
+                  Linking.openURL(trackingUrl).catch((err) => {
+                    console.error('Failed to open tracking URL:', err);
+                    Alert.alert(t('error'), t('failed_to_open_tracking'));
+                  });
+                }}
+                hapticType="light"
+              >
+                <ExternalLink size={18} color="#FFFFFF" strokeWidth={2.5} />
+                <Text style={styles.trackingButtonText}>{t('track_order')}</Text>
+              </TouchableOpacity>
+            )}
           </AnimatedCard>
         )}
 
         {/* Notes */}
         {(order.notes || order.customerNotes) && (
-          <AnimatedCard index={6} style={[styles.section, { backgroundColor: colors.surface }]}>
+          <AnimatedCard index={7} style={[styles.section, { backgroundColor: colors.surface }]}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>
               {t('notes')}
             </Text>
@@ -714,36 +1280,6 @@ export default function OrderDetailsScreen() {
               </View>
             )}
           </AnimatedCard>
-        )}
-
-        {/* Quick Actions */}
-        {order.status === 'PENDING' && (
-          <View style={styles.actionsContainer}>
-            <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: colors.primary }]}
-              onPress={() => handleStatusChange('CONFIRMED')}
-              disabled={updating}
-              hapticType="medium"
-            >
-              {updating ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <Text style={styles.actionButtonText}>{t('confirm_order')}</Text>
-              )}
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: colors.error }]}
-              onPress={() => handleStatusChange('CANCELLED')}
-              disabled={updating}
-              hapticType="heavy"
-            >
-              {updating ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <Text style={styles.actionButtonText}>{t('cancel_order')}</Text>
-              )}
-            </TouchableOpacity>
-          </View>
         )}
       </ScrollView>
     </View>
@@ -936,6 +1472,10 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginBottom: 4,
   },
+  itemVariant: {
+    fontSize: 12,
+    marginBottom: 4,
+  },
   itemPriceRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1005,6 +1545,21 @@ const styles = StyleSheet.create({
     minHeight: 50,
   },
   actionButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  trackingButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.m,
+    paddingHorizontal: spacing.l,
+    borderRadius: 12,
+    gap: spacing.s,
+    marginTop: spacing.s,
+  },
+  trackingButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
