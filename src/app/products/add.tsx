@@ -34,6 +34,7 @@ import { generateAllContentWithImage } from '@/services/ai.service';
 import { getFieldName, getTranslatedName } from '@/utils/language';
 import { CURRENCIES, getCurrencyByCode } from '@/constants/currencies';
 import { getStoreSettings } from '@/services/store-settings.service';
+import { uploadMultipleImages, validateImages } from '@/services/upload.service';
 
 export default function AddProductScreen() {
   const { t, i18n } = useTranslation('products');
@@ -45,6 +46,8 @@ export default function AddProductScreen() {
 
   const [loading, setLoading] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
+  const [uploadStatus, setUploadStatus] = useState<string>('');
   const [categories, setCategories] = useState<Category[]>([]);
 
   // Dynamic form state - stores all fields including language-specific ones
@@ -172,13 +175,26 @@ export default function AddProductScreen() {
 
     try {
       setAiLoading(true);
+      setUploadStatus(t('uploading_image_for_ai') || 'Uploading image for AI...');
 
       // استخدام الصورة المحددة للـ AI
       const selectedImage = images[selectedAIImageIndex];
 
+      // Upload selected image to S3 first
+      const imageUris = [selectedImage.uri];
+      const uploadedImages = await uploadMultipleImages(imageUris, 'products');
+
+      if (!uploadedImages || uploadedImages.length === 0) {
+        throw new Error('Failed to upload image for AI');
+      }
+
+      const s3ImageUrl = uploadedImages[0].url;
+
+      setUploadStatus(t('generating_content') || 'Generating content...');
+
       // استدعاء AI لتوليد المحتوى بناءً على لغات المتجر
       const response = await generateAllContentWithImage({
-        imageUri: selectedImage.uri,
+        imageUri: s3ImageUrl, // Use S3 URL instead of local URI
         category: formData.categoryId || undefined,
         storeLanguages,
         dashboardLanguage: currentLanguage,
@@ -204,6 +220,7 @@ export default function AddProductScreen() {
       Alert.alert(t('error'), errorMessage);
     } finally {
       setAiLoading(false);
+      setUploadStatus('');
     }
   };
 
@@ -233,13 +250,49 @@ export default function AddProductScreen() {
 
     try {
       setLoading(true);
+      setUploadProgress(0);
+      setUploadStatus(t('validating_images') || 'Validating images...');
 
-      // تحضير الصور (تحويل إلى FormData format)
-      const imageFiles = images.map((img, index) => ({
-        uri: img.uri,
+      // Validate images before upload
+      const imageUris = images.map((img) => img.uri);
+      const validation = await validateImages(imageUris, {
+        maxSizeMB: 5,
+        maxWidth: 4000,
+        maxHeight: 4000,
+        allowedFormats: ['jpg', 'jpeg', 'png', 'webp'],
+      });
+
+      if (!validation.valid) {
+        Alert.alert(t('error'), validation.errors.join('\n'));
+        setLoading(false);
+        setUploadStatus('');
+        return;
+      }
+
+      // Upload images to S3
+      setUploadStatus(t('uploading_images') || 'Uploading images...');
+      const uploadedImages = await uploadMultipleImages(
+        imageUris,
+        'products',
+        (index, progress) => {
+          setUploadProgress(progress.percentage);
+          setUploadStatus(`${t('uploading')} ${index + 1}/${imageUris.length} (${progress.percentage}%)`);
+        }
+      );
+
+      if (!uploadedImages || uploadedImages.length === 0) {
+        throw new Error('Failed to upload images');
+      }
+
+      // Prepare image files with S3 URLs
+      const imageFiles = uploadedImages.map((img, index) => ({
+        uri: img.url, // Use S3 URL instead of local URI
         type: 'image/jpeg',
         name: `product-${index}.jpg`,
       }));
+
+      setUploadStatus(t('creating_product') || 'Creating product...');
+      setUploadProgress(100);
 
       // Build product data with dynamic language fields
       const productData: any = {
@@ -274,6 +327,8 @@ export default function AddProductScreen() {
       Alert.alert(t('error'), error.message || t('create_error'));
     } finally {
       setLoading(false);
+      setUploadProgress(0);
+      setUploadStatus('');
     }
   };
 
@@ -616,7 +671,19 @@ export default function AddProductScreen() {
             disabled={loading}
           >
             {loading ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="small" color="#FFFFFF" />
+                {uploadStatus && (
+                  <View style={styles.uploadStatusContainer}>
+                    <Text style={styles.uploadStatusText}>{uploadStatus}</Text>
+                    {uploadProgress > 0 && uploadProgress < 100 && (
+                      <View style={styles.progressBarContainer}>
+                        <View style={[styles.progressBar, { width: `${uploadProgress}%` }]} />
+                      </View>
+                    )}
+                  </View>
+                )}
+              </View>
             ) : (
               <Text style={styles.submitButtonText}>{t('create')}</Text>
             )}
@@ -970,5 +1037,36 @@ const styles = StyleSheet.create({
     fontSize: 11,
     marginTop: spacing.xs,
     fontStyle: 'italic',
+  },
+
+  // Upload Progress
+  loadingContainer: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: spacing.xs,
+    width: '100%',
+  },
+  uploadStatusContainer: {
+    width: '100%',
+    gap: spacing.xxs,
+  },
+  uploadStatusText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    textAlign: 'center',
+    fontWeight: '500',
+  },
+  progressBarContainer: {
+    width: '100%',
+    height: 3,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+    borderRadius: 2,
+    overflow: 'hidden',
+    marginTop: spacing.xxs,
+  },
+  progressBar: {
+    height: '100%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 2,
   },
 });
