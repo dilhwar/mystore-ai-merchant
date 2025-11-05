@@ -82,5 +82,9 @@
   "processing_images": "Processing images...",
   "creating_product": "Creating product...",
   "updating_product": "Updating product...",
-  "currency_required": "Currency is required"
+  "currency_required": "Currency is required",
+  "product_details": "Product Details",
+  "product_deleted": "Product deleted successfully",
+  "delete_failed": "Failed to delete product",
+  "view_details": "View Details"
 }

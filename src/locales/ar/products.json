@@ -82,5 +82,9 @@
   "processing_images": "جاري معالجة الصور...",
   "creating_product": "جاري إنشاء المنتج...",
   "updating_product": "جاري تحديث المنتج...",
-  "currency_required": "العملة مطلوبة"
+  "currency_required": "العملة مطلوبة",
+  "product_details": "تفاصيل المنتج",
+  "product_deleted": "تم حذف المنتج بنجاح",
+  "delete_failed": "فشل حذف المنتج",
+  "view_details": "عرض التفاصيل"
 }

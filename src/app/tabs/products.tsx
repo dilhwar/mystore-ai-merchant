@@ -170,7 +170,7 @@ export default function ProductsNewScreen() {
 
   const handleProductPress = (product: Product) => {
     haptics.light();
-    // Navigate to product details
+    router.push(`/products/${product.id}`);
   };
 
   const handleProductLongPress = (product: Product) => {
