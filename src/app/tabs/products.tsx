@@ -184,7 +184,7 @@ export default function ProductsNewScreen() {
     haptics.selection();
     setTimeout(() => {
       if (selectedProduct) {
-        // router.push(`/products/edit/${selectedProduct.id}`);
+        router.push(`/products/edit/${selectedProduct.id}`);
       }
     }, 300);
   };
