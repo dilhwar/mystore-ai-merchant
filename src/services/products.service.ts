@@ -1,4 +1,4 @@
-import { apiGet, apiPost } from './api';
+import { apiGet, apiPost, apiDelete } from './api';
 
 export interface ProductImage {
   id: string;
@@ -230,6 +230,130 @@ export const createProduct = async (data: CreateProductData): Promise<Product> =
     return response.data.data;
   } catch (error: any) {
     console.error('Create product error:', error.message);
+    throw error;
+  }
+};
+
+/**
+ * Get single product by ID
+ */
+export const getProductById = async (id: string): Promise<Product> => {
+  try {
+    const response = await apiGet<{ message: string; data: Product }>(`/products/${id}`);
+
+    if (response.data?.data) {
+      return response.data.data;
+    }
+
+    throw new Error('Failed to fetch product');
+  } catch (error: any) {
+    console.error('Get product by ID error:', error.message);
+    throw error;
+  }
+};
+
+/**
+ * Update product data interface
+ */
+export interface UpdateProductData extends Partial<CreateProductData> {
+  // Supports partial updates
+}
+
+/**
+ * Update an existing product
+ */
+export const updateProduct = async (
+  id: string,
+  data: UpdateProductData
+): Promise<Product> => {
+  try {
+    const formData = new FormData();
+
+    // Add fields to update (only if provided)
+    if (data.name !== undefined) formData.append('name', data.name);
+    if (data.nameAr !== undefined) formData.append('nameAr', data.nameAr || '');
+    if (data.description !== undefined) formData.append('description', data.description || '');
+    if (data.descriptionAr !== undefined) formData.append('descriptionAr', data.descriptionAr || '');
+    if (data.price !== undefined) formData.append('price', data.price.toString());
+    if (data.quantity !== undefined) formData.append('quantity', data.quantity.toString());
+    if (data.sku !== undefined) formData.append('sku', data.sku || '');
+    if (data.categoryId !== undefined) formData.append('categoryId', data.categoryId || '');
+    if (data.isActive !== undefined) formData.append('isActive', data.isActive.toString());
+    if (data.featured !== undefined) formData.append('featured', data.featured.toString());
+
+    // Handle images if provided
+    if (data.images && data.images.length > 0) {
+      data.images.forEach((image: any) => {
+        formData.append('images', image);
+      });
+    }
+
+    const response = await apiPost<{ message: string; data: Product }>(
+      `/products/${id}`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      }
+    );
+
+    return response.data.data;
+  } catch (error: any) {
+    console.error('Update product error:', error.message);
+    throw error;
+  }
+};
+
+/**
+ * Delete a product
+ */
+export const deleteProduct = async (id: string): Promise<void> => {
+  try {
+    await apiDelete(`/products/${id}`);
+  } catch (error: any) {
+    console.error('Delete product error:', error.message);
+    throw error;
+  }
+};
+
+/**
+ * Toggle product active status
+ */
+export const toggleProductActive = async (
+  id: string,
+  isActive: boolean
+): Promise<Product> => {
+  try {
+    const response = await apiPost<{ message: string; data: Product }>(
+      `/products/${id}`,
+      { isActive },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    return response.data.data;
+  } catch (error: any) {
+    console.error('Toggle product active error:', error.message);
+    throw error;
+  }
+};
+
+/**
+ * Duplicate a product
+ */
+export const duplicateProduct = async (id: string): Promise<Product> => {
+  try {
+    const response = await apiPost<{ message: string; data: Product }>(
+      `/products/${id}/duplicate`
+    );
+
+    return response.data.data;
+  } catch (error: any) {
+    console.error('Duplicate product error:', error.message);
     throw error;
   }
 };
