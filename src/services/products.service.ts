@@ -39,7 +39,10 @@ export interface Product {
   name: string;
   nameAr?: string;
   slug: string;
+  description?: string;
+  descriptionAr?: string;
   price: number;
+  currency?: string;
   sku?: string;
   quantity: number;
   isActive: boolean;

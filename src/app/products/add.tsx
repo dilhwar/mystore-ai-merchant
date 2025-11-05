@@ -11,12 +11,12 @@ import {
   Switch,
   Image,
 } from 'react-native';
+import { Menu, Divider } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/store/themeStore';
 import { useAuthStore } from '@/store/authStore';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import { PageHeader } from '@/components/ui/PageHeader';
 import { spacing } from '@/theme/spacing';
 import { design } from '@/theme/design';
 import { haptics } from '@/utils/haptics';
@@ -27,6 +27,11 @@ import {
   Package,
   Tag,
   FileText,
+  ChevronDown,
+  X,
+  Check,
+  Folder,
+  CornerDownRight,
 } from 'lucide-react-native';
 import { createProduct } from '@/services/products.service';
 import { getCategories, Category } from '@/services/categories.service';
@@ -60,8 +65,19 @@ export default function AddProductScreen() {
   });
   const [images, setImages] = useState<any[]>([]); // Support multiple images (up to 10)
   const [selectedAIImageIndex, setSelectedAIImageIndex] = useState<number>(0); // Which image to use for AI
+  const [categoryMenuVisible, setCategoryMenuVisible] = useState(false); // Category modal visible
 
   const currentLanguage = i18n.language;
+
+  // Log state changes for debugging
+  useEffect(() => {
+    console.log('[CategoryMenu] Visibility changed:', categoryMenuVisible);
+  }, [categoryMenuVisible]);
+
+  useEffect(() => {
+    console.log('[Categories] Loaded categories:', categories.length);
+    console.log('[Categories] Categories data:', JSON.stringify(categories, null, 2));
+  }, [categories]);
 
   // Get currency info for display
   const currencyInfo = getCurrencyByCode(storeCurrency);
@@ -92,10 +108,15 @@ export default function AddProductScreen() {
 
   const loadCategories = async () => {
     try {
+      console.log('[LoadCategories] Fetching categories...');
       const data = await getCategories();
+      console.log('[LoadCategories] Categories received:', data.length);
+      console.log('[LoadCategories] Categories structure:', JSON.stringify(data, null, 2));
       setCategories(data);
+      console.log('[LoadCategories] Categories state updated successfully');
     } catch (error: any) {
-      console.error('Load categories error:', error.message);
+      console.error('[LoadCategories] Error:', error.message);
+      console.error('[LoadCategories] Error stack:', error.stack);
     }
   };
 
@@ -133,7 +154,11 @@ export default function AddProductScreen() {
 
   // اختيار صور متعددة (حتى 10)
   const pickImages = async () => {
+    console.log('[PickImages] Starting image picker...');
+    console.log('[PickImages] Current images count:', images.length);
+
     if (images.length >= 10) {
+      console.log('[PickImages] Max images reached (10)');
       Alert.alert(t('error'), t('max_images_reached'));
       return;
     }
@@ -146,8 +171,11 @@ export default function AddProductScreen() {
       selectionLimit: 10 - images.length,
     });
 
+    console.log('[PickImages] Result:', result.canceled ? 'Canceled' : `Selected ${result.assets?.length} images`);
+
     if (!result.canceled && result.assets.length > 0) {
       const newImages = [...images, ...result.assets].slice(0, 10);
+      console.log('[PickImages] New total images:', newImages.length);
       setImages(newImages);
       haptics.success();
     }
@@ -184,11 +212,21 @@ export default function AddProductScreen() {
       const imageUris = [selectedImage.uri];
       const uploadedImages = await uploadMultipleImages(imageUris, 'products');
 
+      console.log('Uploaded images:', uploadedImages);
+
       if (!uploadedImages || uploadedImages.length === 0) {
         throw new Error('Failed to upload image for AI');
       }
 
-      const s3ImageUrl = uploadedImages[0].url;
+      // Extract URL from the upload response structure
+      // Backend returns: { original, sizes: { large: { url, ... }, medium: { url, ... } } }
+      const s3ImageUrl = uploadedImages[0]?.sizes?.large?.url || uploadedImages[0]?.sizes?.medium?.url;
+
+      console.log('S3 Image URL:', s3ImageUrl);
+
+      if (!s3ImageUrl) {
+        throw new Error('Failed to get image URL from upload response');
+      }
 
       setUploadStatus(t('generating_content') || 'Generating content...');
 
@@ -216,7 +254,12 @@ export default function AddProductScreen() {
 
     } catch (error: any) {
       console.error('AI generation error:', error);
-      const errorMessage = error.response?.data?.message || error.message || t('ai_generation_failed');
+      console.error('Error details:', {
+        message: error.message,
+        responseData: error.response?.data,
+        responseMessage: error.response?.data?.message,
+      });
+      const errorMessage = error.message || t('ai_generation_failed');
       Alert.alert(t('error'), errorMessage);
     } finally {
       setAiLoading(false);
@@ -351,20 +394,26 @@ export default function AddProductScreen() {
     return languageNames[langCode] || langCode.toUpperCase();
   };
 
+  // Check if form is valid
+  const isFormValid = (): boolean => {
+    // Check if at least one image is uploaded
+    if (images.length === 0) return false;
+
+    // Check if primary language name is filled
+    const primaryNameField = getFieldName(0, 'name', storeLanguages[0]);
+    if (!formData[primaryNameField]?.trim()) return false;
+
+    // Check if price is valid
+    if (!formData.price || parseFloat(formData.price) < 0) return false;
+
+    return true;
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <PageHeader title={t('add_product')} />
-
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
         {/* Image Section Card */}
         <View style={[styles.section, { backgroundColor: colors.surface }]}>
-          <View style={styles.sectionHeader}>
-            <ImagePlus size={20} color={colors.primary} strokeWidth={2} />
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              {t('product_image')}
-            </Text>
-          </View>
-
           {/* Images Grid */}
           {images.length > 0 ? (
             <View style={styles.imagesGrid}>
@@ -421,7 +470,7 @@ export default function AddProductScreen() {
             >
               <View style={styles.imagePickerContent}>
                 <View style={[styles.iconContainer, { backgroundColor: `${colors.primary}15` }]}>
-                  <ImagePlus size={32} color={colors.primary} strokeWidth={1.5} />
+                  <ImagePlus size={24} color={colors.primary} strokeWidth={1.5} />
                 </View>
                 <Text style={[styles.imagePickerText, { color: colors.text }]}>
                   {t('tap_to_add_images')}
@@ -458,13 +507,6 @@ export default function AddProductScreen() {
 
         {/* Product Information Section */}
         <View style={[styles.section, { backgroundColor: colors.surface }]}>
-          <View style={styles.sectionHeader}>
-            <FileText size={20} color={colors.primary} strokeWidth={2} />
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              {t('product_information')}
-            </Text>
-          </View>
-
           {/* Dynamic Language Fields */}
           {storeLanguages.map((lang, index) => {
             const isPrimaryLanguage = index === 0;
@@ -527,44 +569,15 @@ export default function AddProductScreen() {
 
         {/* Pricing & Inventory Section */}
         <View style={[styles.section, { backgroundColor: colors.surface }]}>
-          <View style={styles.sectionHeader}>
-            <DollarSign size={20} color={colors.primary} strokeWidth={2} />
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              {t('pricing_inventory')}
-            </Text>
-          </View>
-
-          {/* Currency Display (Read-only from store settings) */}
-          <View style={styles.inputGroup}>
-            <Text style={[styles.label, { color: colors.text }]}>
-              {t('currency')} <Text style={styles.required}>*</Text>
-            </Text>
-            <View style={[styles.currencyDisplay, { backgroundColor: colors.background, borderColor: colors.border }]}>
-              <Text style={[styles.currencyFlag, { fontSize: 20 }]}>{currencyInfo?.flag || '💰'}</Text>
-              <View style={styles.currencyInfo}>
-                <Text style={[styles.currencyCode, { color: colors.text, fontSize: 16, fontWeight: '700' }]}>
-                  {currencyInfo?.code || storeCurrency}
-                </Text>
-                <Text style={[styles.currencyName, { color: colors.textSecondary, fontSize: 12 }]}>
-                  {currentLanguage === 'ar' ? currencyInfo?.nativeName : currencyInfo?.name}
-                </Text>
-              </View>
-              <Text style={[styles.currencySymbol, { color: colors.primary, fontSize: 18, fontWeight: '600' }]}>
-                {currencyInfo?.symbol || storeCurrency}
-              </Text>
-            </View>
-            <Text style={[styles.helperText, { color: colors.textTertiary }]}>
-              {t('currency_from_store_settings')}
-            </Text>
-          </View>
-
           <View style={styles.row}>
             <View style={[styles.inputGroup, styles.flex1]}>
               <Text style={[styles.label, { color: colors.text }]}>
                 {t('price')} <Text style={styles.required}>*</Text>
               </Text>
               <View style={[styles.inputWrapper, { backgroundColor: colors.background, borderColor: colors.border }]}>
-                <DollarSign size={18} color={colors.textSecondary} strokeWidth={2} />
+                <Text style={[styles.currencySymbolInline, { color: colors.primary }]}>
+                  {currencyInfo?.symbol || storeCurrency}
+                </Text>
                 <TextInput
                   style={[styles.input, { color: colors.text }]}
                   value={formData.price}
@@ -595,49 +608,158 @@ export default function AddProductScreen() {
           {/* Category */}
           <View style={styles.inputGroup}>
             <Text style={[styles.label, { color: colors.text }]}>{t('category')}</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoriesContainer}>
-              <TouchableOpacity
-                style={[
-                  styles.categoryChip,
-                  { backgroundColor: !formData.categoryId ? colors.primary : colors.background, borderColor: colors.border },
-                ]}
-                onPress={() => {
-                  haptics.light();
-                  updateField('categoryId', '');
-                }}
-                activeOpacity={0.7}
-              >
-                <Text style={[styles.categoryChipText, { color: !formData.categoryId ? '#FFF' : colors.text }]}>
-                  {t('no_category')}
-                </Text>
-              </TouchableOpacity>
-              {categories.map((cat) => (
+            <Menu
+              visible={categoryMenuVisible}
+              onDismiss={() => {
+                console.log('[CategoryMenu] Menu dismissed (closed)');
+                setCategoryMenuVisible(false);
+                // Force remount by briefly resetting then restoring categories
+                setTimeout(() => {
+                  console.log('[CategoryMenu] Menu fully closed, ready for next open');
+                }, 100);
+              }}
+              anchor={
                 <TouchableOpacity
-                  key={cat.id}
                   style={[
-                    styles.categoryChip,
+                    styles.categorySelector,
                     {
-                      backgroundColor: formData.categoryId === cat.id ? colors.primary : colors.background,
-                      borderColor: colors.border,
-                    },
+                      backgroundColor: colors.card,
+                      borderColor: categoryMenuVisible ? colors.primary : colors.border,
+                      ...design.shadow.sm,
+                    }
                   ]}
                   onPress={() => {
+                    console.log('[CategoryMenu] Button pressed');
+                    console.log('[CategoryMenu] Current visible state:', categoryMenuVisible);
+                    console.log('[CategoryMenu] Current categories count:', categories.length);
+
                     haptics.light();
-                    updateField('categoryId', cat.id);
+
+                    if (categoryMenuVisible) {
+                      // If already visible, close it first
+                      console.log('[CategoryMenu] Closing menu (was open)');
+                      setCategoryMenuVisible(false);
+                    } else {
+                      // If closed, open it
+                      console.log('[CategoryMenu] Opening category menu...');
+                      setCategoryMenuVisible(true);
+                    }
                   }}
                   activeOpacity={0.7}
                 >
-                  <Text
-                    style={[
-                      styles.categoryChipText,
-                      { color: formData.categoryId === cat.id ? '#FFF' : colors.text },
-                    ]}
-                  >
-                    {getTranslatedName(cat, storeLanguages, currentLanguage)}
-                  </Text>
+                  <View style={styles.categorySelectorContent}>
+                    <Tag size={18} color={formData.categoryId ? colors.primary : colors.textSecondary} />
+                    <Text
+                      style={[
+                        styles.categorySelectorText,
+                        {
+                          color: formData.categoryId ? colors.text : colors.textSecondary,
+                          fontWeight: formData.categoryId ? '600' : '400'
+                        }
+                      ]}
+                    >
+                      {formData.categoryId
+                        ? (() => {
+                            const mainCat = categories.find(c => c.id === formData.categoryId);
+                            if (mainCat) return getTranslatedName(mainCat, storeLanguages, currentLanguage);
+                            const subCat = categories.flatMap(c => c.children || []).find(sub => sub.id === formData.categoryId);
+                            if (subCat) return getTranslatedName(subCat, storeLanguages, currentLanguage);
+                            return t('select_category');
+                          })()
+                        : t('select_category')}
+                    </Text>
+                  </View>
+                  <ChevronDown
+                    size={20}
+                    color={colors.textSecondary}
+                    style={{
+                      transform: [{ rotate: categoryMenuVisible ? '180deg' : '0deg' }]
+                    }}
+                  />
                 </TouchableOpacity>
-              ))}
-            </ScrollView>
+              }
+              contentStyle={{ backgroundColor: colors.surface }}
+            >
+              {/* No Category Option */}
+              <Menu.Item
+                onPress={() => {
+                  console.log('[CategoryMenu] "No Category" selected');
+                  haptics.light();
+                  updateField('categoryId', '');
+                  // Force close with delay
+                  requestAnimationFrame(() => {
+                    setCategoryMenuVisible(false);
+                  });
+                }}
+                title={t('no_category')}
+                leadingIcon={() => <X size={20} color={colors.textSecondary} />}
+                trailingIcon={() => !formData.categoryId ? <Check size={20} color={colors.primary} /> : null}
+              />
+              <Divider />
+
+              {/* Categories with subcategories */}
+              {categories.map((cat) => {
+                const hasChildren = cat.children && cat.children.length > 0;
+                const isSelected = formData.categoryId === cat.id;
+
+                return (
+                  <View key={cat.id}>
+                    {/* Parent Category */}
+                    <Menu.Item
+                      onPress={() => {
+                        console.log('[CategoryMenu] Parent category clicked:', cat.id, getTranslatedName(cat, storeLanguages, currentLanguage));
+                        console.log('[CategoryMenu] Has children:', hasChildren);
+                        if (!hasChildren) {
+                          console.log('[CategoryMenu] Selecting parent category:', cat.id);
+                          haptics.light();
+                          updateField('categoryId', cat.id);
+                          // Force close with delay
+                          requestAnimationFrame(() => {
+                            setCategoryMenuVisible(false);
+                          });
+                        } else {
+                          console.log('[CategoryMenu] Parent category disabled (has children)');
+                        }
+                      }}
+                      disabled={hasChildren}
+                      title={getTranslatedName(cat, storeLanguages, currentLanguage)}
+                      leadingIcon={() =>
+                        hasChildren ? (
+                          <Folder size={20} color={colors.text} />
+                        ) : (
+                          <Tag size={20} color={colors.textSecondary} />
+                        )
+                      }
+                      trailingIcon={() => isSelected && !hasChildren ? <Check size={20} color={colors.primary} /> : null}
+                      titleStyle={{ fontWeight: hasChildren ? '600' : '400' }}
+                    />
+
+                    {/* Subcategories */}
+                    {hasChildren && cat.children!.map((subCat) => {
+                      const isSubSelected = formData.categoryId === subCat.id;
+                      return (
+                        <Menu.Item
+                          key={subCat.id}
+                          onPress={() => {
+                            console.log('[CategoryMenu] Subcategory selected:', subCat.id, getTranslatedName(subCat, storeLanguages, currentLanguage));
+                            haptics.light();
+                            updateField('categoryId', subCat.id);
+                            // Force close with delay
+                            requestAnimationFrame(() => {
+                              setCategoryMenuVisible(false);
+                            });
+                          }}
+                          title={getTranslatedName(subCat, storeLanguages, currentLanguage)}
+                          leadingIcon={() => <CornerDownRight size={18} color={colors.textSecondary} />}
+                          trailingIcon={() => isSubSelected ? <Check size={20} color={colors.primary} /> : null}
+                          style={{ paddingLeft: spacing.lg }}
+                        />
+                      );
+                    })}
+                  </View>
+                );
+              })}
+            </Menu>
           </View>
 
           {/* Active Switch */}
@@ -666,9 +788,16 @@ export default function AddProductScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.button, styles.submitButton, { backgroundColor: colors.primary }]}
+            style={[
+              styles.button,
+              styles.submitButton,
+              {
+                backgroundColor: !isFormValid() || loading ? colors.border : colors.primary,
+                opacity: !isFormValid() || loading ? 0.5 : 1,
+              }
+            ]}
             onPress={handleSubmit}
-            disabled={loading}
+            disabled={loading || !isFormValid()}
           >
             {loading ? (
               <View style={styles.loadingContainer}>
@@ -726,7 +855,7 @@ const styles = StyleSheet.create({
 
   // Image Picker
   imagePicker: {
-    height: 200,
+    height: 110,
     borderRadius: design.radius.md,
     borderWidth: 2,
     borderStyle: 'dashed',
@@ -739,18 +868,18 @@ const styles = StyleSheet.create({
     gap: spacing.s,
   },
   iconContainer: {
-    width: 64,
-    height: 64,
+    width: 40,
+    height: 40,
     borderRadius: design.radius.full,
     alignItems: 'center',
     justifyContent: 'center',
   },
   imagePickerText: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '500',
   },
   imagePickerHint: {
-    fontSize: 12,
+    fontSize: 11,
   },
   imagePreviewContainer: {
     width: '100%',
@@ -859,6 +988,11 @@ const styles = StyleSheet.create({
     minHeight: 80,
     textAlignVertical: 'top',
   },
+  currencySymbolInline: {
+    fontSize: 18,
+    fontWeight: '700',
+    paddingRight: spacing.xs,
+  },
 
   // Row
   row: {
@@ -882,6 +1016,40 @@ const styles = StyleSheet.create({
   },
   categoryChipText: {
     fontSize: 13,
+    fontWeight: '500',
+  },
+  categorySelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: spacing.m,
+    paddingHorizontal: spacing.m + 2,
+    borderRadius: design.radius.md,
+    borderWidth: 1.5,
+    minHeight: 52,
+  },
+  categorySelectorContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs + 2,
+    flex: 1,
+  },
+  categorySelectorText: {
+    fontSize: 15,
+    letterSpacing: 0.2,
+  },
+  menuContent: {
+    borderRadius: design.radius.md,
+    marginTop: spacing.xs,
+    minWidth: 200,
+    maxHeight: 400,
+  },
+  menuItem: {
+    minHeight: 48,
+    paddingVertical: spacing.xs,
+  },
+  menuItemTitle: {
+    fontSize: 15,
     fontWeight: '500',
   },
 
@@ -1006,39 +1174,6 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 
-  // Currency Display (Read-only)
-  currencyDisplay: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: spacing.m,
-    borderRadius: design.radius.md,
-    borderWidth: 1,
-    gap: spacing.m,
-  },
-  currencyInfo: {
-    flex: 1,
-  },
-  currencyFlag: {
-    fontSize: 20,
-  },
-  currencyCode: {
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  currencyName: {
-    fontSize: 12,
-    marginTop: 2,
-  },
-  currencySymbol: {
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  helperText: {
-    fontSize: 11,
-    marginTop: spacing.xs,
-    fontStyle: 'italic',
-  },
-
   // Upload Progress
   loadingContainer: {
     flexDirection: 'column',
@@ -1069,4 +1204,5 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 2,
   },
+
 });

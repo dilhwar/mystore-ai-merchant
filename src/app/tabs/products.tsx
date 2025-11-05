@@ -3,8 +3,10 @@ import { ScrollView, RefreshControl, Dimensions, Image as RNImage, Alert as RNAl
 import { useTranslation } from 'react-i18next';
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/store/themeStore';
+import { useAuth } from '@/store/authStore';
 import { haptics } from '@/utils/haptics';
 import { formatCurrency } from '@/utils/currency';
+import { productLogger } from '@/utils/logger';
 import {
   Box,
   HStack,
@@ -53,6 +55,9 @@ import {
   DollarSign,
   Archive,
   Copy,
+  Filter,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react-native';
 import { OrderCardSkeleton } from '@/components/ui/SkeletonLoader';
 import {
@@ -63,9 +68,10 @@ import {
   getProductPrice,
   getStockStatusKey,
 } from '@/services/products.service';
+import { getCategories, Category, getCategoryName } from '@/services/categories.service';
 
 const { width } = Dimensions.get('window');
-const CARD_WIDTH = (width - 48) / 2; // 16px padding each side + 16px gap
+const CARD_WIDTH = (width - 40) / 2; // 16px padding each side + 8px gap between cards
 
 interface ProductCardSkeletonProps {
   width: number;
@@ -75,7 +81,7 @@ function ProductCardSkeleton({ width }: ProductCardSkeletonProps) {
   const { colors, isDark } = useTheme();
 
   return (
-    <Box w={width} mb="$4">
+    <Box w={width} mb="$3">
       <Card size="md" variant="elevated" bg="$cardLight" $dark-bg="$cardDark">
         <VStack space="sm">
           {/* Image skeleton */}
@@ -96,40 +102,76 @@ export default function ProductsNewScreen() {
   const { t, i18n } = useTranslation('products');
   const router = useRouter();
   const { colors, isDark } = useTheme();
+  const { storeCurrency } = useAuth();
 
   const [products, setProducts] = useState<Product[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [showActionSheet, setShowActionSheet] = useState(false);
   const [filterActive, setFilterActive] = useState<'all' | 'active' | 'inactive'>('all');
+
+  // Sorting state
+  const [sortBy, setSortBy] = useState<'name' | 'price' | 'date' | 'stock'>('date');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const ITEMS_PER_PAGE = 20;
+
+  // Advanced filters state
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [showFiltersSheet, setShowFiltersSheet] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [stockFilter, setStockFilter] = useState<'all' | 'in_stock' | 'low_stock' | 'out_of_stock'>('all');
 
   const currentLanguage = i18n.language;
 
   const loadProducts = async (refresh = false) => {
     try {
       if (refresh) {
+        productLogger.refresh({ language: currentLanguage });
         haptics.light();
         setRefreshing(true);
+        setCurrentPage(1);
       } else {
+        productLogger.loadList({ language: currentLanguage });
         setLoading(true);
       }
 
       const params = {
         page: 1,
-        limit: 50,
+        limit: ITEMS_PER_PAGE,
       };
 
       const data = await getProducts(params);
       setProducts(data.products);
+      setTotalPages(data.pagination?.totalPages || 1);
+      setHasMore(data.products.length >= ITEMS_PER_PAGE);
 
       if (refresh) {
+        productLogger.refreshSuccess(data.products.length, {
+          totalPages: data.pagination?.totalPages,
+          language: currentLanguage
+        });
         haptics.success();
+      } else {
+        productLogger.loadListSuccess(data.products.length, {
+          totalPages: data.pagination?.totalPages,
+          language: currentLanguage
+        });
       }
     } catch (error: any) {
-      console.error('Load products error:', error.message);
+      if (refresh) {
+        productLogger.refreshError(error, { language: currentLanguage });
+      } else {
+        productLogger.loadListError(error, { language: currentLanguage });
+      }
       haptics.error();
     } finally {
       setLoading(false);
@@ -137,13 +179,63 @@ export default function ProductsNewScreen() {
     }
   };
 
+  // Load more products for infinite scroll
+  const loadMoreProducts = async () => {
+    if (loadingMore || !hasMore || searchQuery.trim()) return;
+
+    try {
+      setLoadingMore(true);
+      const nextPage = currentPage + 1;
+
+      productLogger.loadMore(nextPage, { language: currentLanguage });
+
+      const params = {
+        page: nextPage,
+        limit: ITEMS_PER_PAGE,
+      };
+
+      const data = await getProducts(params);
+
+      if (data.products.length > 0) {
+        setProducts((prev) => [...prev, ...data.products]);
+        setCurrentPage(nextPage);
+        setHasMore(data.products.length >= ITEMS_PER_PAGE);
+        productLogger.loadMoreSuccess(nextPage, data.products.length, {
+          totalItems: products.length + data.products.length,
+          language: currentLanguage
+        });
+      } else {
+        setHasMore(false);
+        productLogger.loadMoreSuccess(nextPage, 0, {
+          message: 'No more products',
+          language: currentLanguage
+        });
+      }
+    } catch (error: any) {
+      productLogger.loadMoreError(currentPage + 1, error, { language: currentLanguage });
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
   useEffect(() => {
     loadProducts();
+    loadCategories();
   }, []);
 
-  // Filter products
+  const loadCategories = async () => {
+    try {
+      const data = await getCategories();
+      setCategories(data);
+    } catch (error: any) {
+      console.error('Load categories error:', error.message);
+    }
+  };
+
+  // Filter and sort products
   useEffect(() => {
     let filtered = [...products];
+    const initialCount = filtered.length;
 
     // Filter by search
     if (searchQuery.trim()) {
@@ -151,6 +243,10 @@ export default function ProductsNewScreen() {
       filtered = filtered.filter((product) => {
         const productName = getProductName(product, currentLanguage).toLowerCase();
         return productName.includes(query);
+      });
+      productLogger.searchResults(query, filtered.length, {
+        originalCount: initialCount,
+        language: currentLanguage
       });
     }
 
@@ -161,8 +257,70 @@ export default function ProductsNewScreen() {
       filtered = filtered.filter((p) => !p.isActive);
     }
 
+    // Filter by category
+    if (selectedCategory) {
+      filtered = filtered.filter((p) => p.category?.id === selectedCategory);
+    }
+
+    // Filter by stock level
+    if (stockFilter !== 'all') {
+      filtered = filtered.filter((p) => {
+        const quantity = p.quantity || 0;
+        if (stockFilter === 'out_of_stock') return quantity === 0;
+        if (stockFilter === 'low_stock') return quantity > 0 && quantity < 10;
+        if (stockFilter === 'in_stock') return quantity >= 10;
+        return true;
+      });
+    }
+
+    // Log applied filters
+    if (selectedCategory || stockFilter !== 'all' || filterActive !== 'all') {
+      productLogger.applyFilters({
+        category: selectedCategory,
+        stockLevel: stockFilter,
+        activeStatus: filterActive,
+        resultCount: filtered.length,
+        language: currentLanguage
+      });
+    }
+
+    // Sort products
+    productLogger.sort(sortBy, sortOrder, {
+      itemCount: filtered.length,
+      language: currentLanguage
+    });
+
+    filtered.sort((a, b) => {
+      let comparison = 0;
+
+      switch (sortBy) {
+        case 'name':
+          const nameA = getProductName(a, currentLanguage).toLowerCase();
+          const nameB = getProductName(b, currentLanguage).toLowerCase();
+          comparison = nameA.localeCompare(nameB);
+          break;
+
+        case 'price':
+          const priceA = getProductPrice(a).price;
+          const priceB = getProductPrice(b).price;
+          comparison = priceA - priceB;
+          break;
+
+        case 'stock':
+          comparison = (a.quantity || 0) - (b.quantity || 0);
+          break;
+
+        case 'date':
+        default:
+          comparison = new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+          break;
+      }
+
+      return sortOrder === 'asc' ? comparison : -comparison;
+    });
+
     setFilteredProducts(filtered);
-  }, [searchQuery, products, currentLanguage, filterActive]);
+  }, [searchQuery, products, currentLanguage, filterActive, sortBy, sortOrder, selectedCategory, stockFilter]);
 
   const onRefresh = useCallback(() => {
     loadProducts(true);
@@ -211,6 +369,18 @@ export default function ProductsNewScreen() {
     }, 300);
   };
 
+  const hasActiveFilters = () => {
+    return !!(selectedCategory || stockFilter !== 'all' || filterActive !== 'all');
+  };
+
+  const clearAllFilters = () => {
+    productLogger.clearFilters({ language: currentLanguage });
+    setSelectedCategory(null);
+    setStockFilter('all');
+    setFilterActive('all');
+    haptics.light();
+  };
+
   const getStockBadgeConfig = (stockKey: string) => {
     const configs = {
       in_stock: { action: 'success' as const, icon: TrendingUp },
@@ -220,15 +390,12 @@ export default function ProductsNewScreen() {
     return configs[stockKey as keyof typeof configs] || configs.in_stock;
   };
 
-  const activeCount = products.filter((p) => p.isActive).length;
-  const inactiveCount = products.filter((p) => !p.isActive).length;
-
   if (loading) {
     return (
       <Box flex={1} bg="$backgroundLight" $dark-bg="$backgroundDark">
         {/* Header */}
-        <Box px="$4" pt="$6" pb="$4">
-          <Heading size="2xl" color="$textLight" $dark-color="$textDark">
+        <Box px="$4" pt="$12" pb="$4">
+          <Heading size="xl" color="$textLight" $dark-color="$textDark">
             {t('products')}
           </Heading>
         </Box>
@@ -246,102 +413,87 @@ export default function ProductsNewScreen() {
   return (
     <Box flex={1} bg="$backgroundLight" $dark-bg="$backgroundDark">
       {/* Header */}
-      <Box px="$4" pt="$6" pb="$4">
-        <HStack justifyContent="space-between" alignItems="center" mb="$4">
-          <VStack space="xs">
-            <Heading size="2xl" color="$textLight" $dark-color="$textDark">
-              {t('products')}
-            </Heading>
-            <Text fontSize="$sm" color="$textSecondaryLight" $dark-color="$textSecondaryDark">
-              {products.length} {t('total_products')}
-            </Text>
-          </VStack>
-
-          {/* Quick Stats */}
-          <HStack space="sm">
-            <VStack alignItems="center" space="xs">
-              <Badge action="success" variant="solid" size="md" borderRadius="$full">
-                <BadgeText>{activeCount}</BadgeText>
-              </Badge>
-              <Text fontSize="$2xs" color="$textSecondaryLight" $dark-color="$textSecondaryDark">
-                Active
-              </Text>
-            </VStack>
-            <VStack alignItems="center" space="xs">
-              <Badge action="muted" variant="solid" size="md" borderRadius="$full">
-                <BadgeText>{inactiveCount}</BadgeText>
-              </Badge>
-              <Text fontSize="$2xs" color="$textSecondaryLight" $dark-color="$textSecondaryDark">
-                Inactive
-              </Text>
-            </VStack>
-          </HStack>
+      <Box px="$4" pt="$12" pb="$4">
+        <HStack alignItems="center" space="sm" mb="$4">
+          <Heading size="xl" color="$textLight" $dark-color="$textDark" style={{ writingDirection: currentLanguage === 'ar' ? 'rtl' : 'ltr' }}>
+            {t('products')}
+          </Heading>
+          <Badge action="muted" variant="solid" size="sm" borderRadius="$full">
+            <BadgeText fontSize="$xs" fontWeight="$bold">{products.length}</BadgeText>
+          </Badge>
         </HStack>
 
-        {/* Search Bar */}
-        <Input
-          variant="outline"
-          size="lg"
-          bg="$surfaceLight"
-          $dark-bg="$surfaceDark"
-          borderColor="$borderLight"
-          $dark-borderColor="$borderDark"
-          borderRadius="$xl"
-          $focus-borderColor="$primary500"
-          mb="$3"
-        >
-          <InputSlot pl="$4">
-            <InputIcon as={Search} size="lg" color={colors.textSecondary} />
-          </InputSlot>
-          <InputField
-            placeholder={t('search_products')}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            color="$textLight"
-            $dark-color="$textDark"
-          />
-          {searchQuery.length > 0 && (
-            <InputSlot pr="$4">
-              <Pressable
-                onPress={() => {
-                  setSearchQuery('');
-                  haptics.light();
-                }}
-              >
-                <InputIcon as={X} size="sm" color={colors.textSecondary} />
-              </Pressable>
+        {/* Search Bar and Filter Row */}
+        <HStack space="sm" alignItems="center" mb="$3">
+          <Input
+            variant="outline"
+            size="lg"
+            bg="$surfaceLight"
+            $dark-bg="$surfaceDark"
+            borderColor="$borderLight"
+            $dark-borderColor="$borderDark"
+            borderRadius="$xl"
+            $focus-borderColor="$primary500"
+            flex={1}
+          >
+            <InputSlot pl="$4">
+              <InputIcon as={Search} size="lg" color={colors.textSecondary} />
             </InputSlot>
-          )}
-        </Input>
+            <InputField
+              placeholder={t('search_products')}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              color="$textLight"
+              $dark-color="$textDark"
+            />
+            {searchQuery.length > 0 && (
+              <InputSlot pr="$4">
+                <Pressable
+                  onPress={() => {
+                    setSearchQuery('');
+                    haptics.light();
+                  }}
+                >
+                  <InputIcon as={X} size="sm" color={colors.textSecondary} />
+                </Pressable>
+              </InputSlot>
+            )}
+          </Input>
 
-        {/* Filter Chips */}
-        <HStack space="sm">
-          {(['all', 'active', 'inactive'] as const).map((filter) => (
-            <Pressable
-              key={filter}
-              onPress={() => {
-                setFilterActive(filter);
-                haptics.selection();
-              }}
-              px="$4"
-              py="$2"
-              borderRadius="$full"
-              bg={filterActive === filter ? '$primary500' : '$surfaceLight'}
-              $dark-bg={filterActive === filter ? '$primary500' : '$surfaceDark'}
-              borderWidth={1}
-              borderColor={filterActive === filter ? '$primary500' : '$borderLight'}
-              $dark-borderColor={filterActive === filter ? '$primary500' : '$borderDark'}
-            >
-              <Text
-                fontSize="$sm"
-                fontWeight="$semibold"
-                color={filterActive === filter ? '$white' : '$textLight'}
-                $dark-color={filterActive === filter ? '$white' : '$textDark'}
+          {/* Filter Button */}
+          <Pressable
+            onPress={() => {
+              setShowFiltersSheet(true);
+              haptics.light();
+            }}
+            px="$4"
+            py="$3"
+            borderRadius="$xl"
+            bg={hasActiveFilters() ? '$primary500' : '$surfaceLight'}
+            $dark-bg={hasActiveFilters() ? '$primary500' : '$surfaceDark'}
+            borderWidth={1}
+            borderColor={hasActiveFilters() ? '$primary500' : '$borderLight'}
+            $dark-borderColor={hasActiveFilters() ? '$primary500' : '$borderDark'}
+            flexDirection="row"
+            alignItems="center"
+            space="xs"
+          >
+            <Filter size={20} color={hasActiveFilters() ? '#FFFFFF' : colors.textSecondary} />
+            {hasActiveFilters() && (
+              <Box
+                w={18}
+                h={18}
+                borderRadius="$full"
+                bg="$white"
+                alignItems="center"
+                justifyContent="center"
               >
-                {filter === 'all' ? t('all') : filter === 'active' ? t('active') : t('inactive')}
-              </Text>
-            </Pressable>
-          ))}
+                <Text fontSize="$2xs" fontWeight="$bold" color="$primary500">
+                  {[selectedCategory, stockFilter !== 'all', filterActive !== 'all'].filter(Boolean).length}
+                </Text>
+              </Box>
+            )}
+          </Pressable>
         </HStack>
       </Box>
 
@@ -352,6 +504,16 @@ export default function ProductsNewScreen() {
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />
         }
+        onScroll={({ nativeEvent }) => {
+          const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
+          const paddingToBottom = 20;
+          const isCloseToBottom = layoutMeasurement.height + contentOffset.y >= contentSize.height - paddingToBottom;
+
+          if (isCloseToBottom && !loadingMore && hasMore && !searchQuery.trim()) {
+            loadMoreProducts();
+          }
+        }}
+        scrollEventThrottle={400}
       >
         {filteredProducts.length === 0 ? (
           <Box mt="$12" alignItems="center" justifyContent="center">
@@ -366,7 +528,7 @@ export default function ProductsNewScreen() {
             </Text>
           </Box>
         ) : (
-          <HStack space="md" flexWrap="wrap" justifyContent="space-between" pb="$24">
+          <VStack pb="$24" px="$4" space="xs">
             {filteredProducts.map((product, index) => {
               const productName = getProductName(product, currentLanguage);
               const productImage = getProductImage(product);
@@ -374,123 +536,74 @@ export default function ProductsNewScreen() {
               const stockStatusKey = getStockStatusKey(product);
               const hasDiscount = !!originalPrice;
               const stockConfig = getStockBadgeConfig(stockStatusKey);
-              const StockIcon = stockConfig.icon;
 
               return (
-                <Card
+                <Pressable
                   key={product.id}
-                  size="md"
-                  variant="elevated"
-                  w={CARD_WIDTH}
-                  mb="$4"
-                  bg="$cardLight"
-                  $dark-bg="$cardDark"
-                  overflow="hidden"
+                  onPress={() => handleProductPress(product)}
+                  onLongPress={() => handleProductLongPress(product)}
+                  py="$3"
+                  borderBottomWidth={1}
+                  borderBottomColor="$borderLight"
+                  $dark-borderBottomColor="$borderDark"
                 >
-                  <Pressable
-                    onPress={() => handleProductPress(product)}
-                    onLongPress={() => handleProductLongPress(product)}
-                  >
-                    <VStack space="sm">
-                      {/* Product Image */}
-                      <Box position="relative" w="$full" h={CARD_WIDTH} bg="$surfaceLight" $dark-bg="$surfaceDark">
-                        {productImage ? (
-                          <Image
-                            source={{ uri: productImage }}
-                            alt={productName}
-                            w="$full"
-                            h="$full"
-                            resizeMode="cover"
-                          />
-                        ) : (
-                          <Box w="$full" h="$full" alignItems="center" justifyContent="center" bg={`${colors.primary}15`}>
-                            <Package size={48} color={colors.primary} strokeWidth={1.5} />
-                          </Box>
-                        )}
+                  <HStack space="md" alignItems="center">
+                    {/* Product Image */}
+                    <Box w={60} h={60} borderRadius="$md" overflow="hidden" bg="$surfaceLight" $dark-bg="$surfaceDark">
+                      {productImage ? (
+                        <RNImage
+                          source={{ uri: productImage }}
+                          style={{ width: 60, height: 60 }}
+                          resizeMode="cover"
+                        />
+                      ) : (
+                        <Box w="$full" h="$full" alignItems="center" justifyContent="center" bg={`${colors.primary}15`}>
+                          <Package size={24} color={colors.primary} strokeWidth={1.5} />
+                        </Box>
+                      )}
+                    </Box>
 
-                        {/* Inactive Overlay */}
-                        {!product.isActive && (
-                          <Box position="absolute" top={0} left={0} right={0} bottom={0} bg="rgba(0,0,0,0.6)" alignItems="center" justifyContent="center">
-                            <EyeOff size={32} color="#FFFFFF" />
-                            <Text fontSize="$sm" color="$white" fontWeight="$bold" mt="$2">
-                              {t('inactive')}
-                            </Text>
-                          </Box>
-                        )}
-
-                        {/* Discount Badge */}
-                        {hasDiscount && product.isActive && (
-                          <Box position="absolute" top="$2" right="$2" px="$2" py="$1" borderRadius="$lg" bg="$error500">
-                            <Text fontSize="$xs" color="$white" fontWeight="$bold">
-                              {product.discountInfo?.type === 'PERCENTAGE' ? `-${product.discountInfo.value}%` : t('sale')}
-                            </Text>
-                          </Box>
-                        )}
-
-                        {/* Menu Button */}
-                        <Pressable
-                          position="absolute"
-                          top="$2"
-                          left="$2"
-                          w={32}
-                          h={32}
-                          borderRadius="$full"
-                          bg="rgba(0,0,0,0.5)"
-                          backdropFilter="blur(10px)"
-                          alignItems="center"
-                          justifyContent="center"
-                          onPress={(e) => {
-                            haptics.light();
-                            setSelectedProduct(product);
-                            setShowActionSheet(true);
-                          }}
-                        >
-                          <MoreVertical size={16} color="#FFFFFF" />
-                        </Pressable>
-                      </Box>
-
-                      {/* Product Info */}
-                      <VStack space="xs" p="$3">
-                        {/* Category */}
-                        {product.category && (
-                          <Text fontSize="$2xs" color="$textSecondaryLight" $dark-color="$textSecondaryDark" textTransform="uppercase" fontWeight="$medium">
-                            {currentLanguage === 'ar' && product.category.nameAr ? product.category.nameAr : product.category.name}
-                          </Text>
-                        )}
-
-                        {/* Product Name */}
-                        <Heading size="sm" color="$textLight" $dark-color="$textDark" numberOfLines={2} minHeight={40}>
-                          {productName}
-                        </Heading>
-
-                        {/* Price */}
-                        <HStack alignItems="center" space="xs" flexWrap="wrap">
-                          <Heading size="md" color="$success500">
-                            {formatCurrency(price, 'IQD', currentLanguage)}
-                          </Heading>
-                          {hasDiscount && (
-                            <Text fontSize="$sm" color="$textSecondaryLight" $dark-color="$textSecondaryDark" textDecorationLine="line-through">
-                              {formatCurrency(originalPrice!, 'IQD', currentLanguage)}
-                            </Text>
-                          )}
-                        </HStack>
-
-                        {/* Stock Badge */}
-                        <Badge action={stockConfig.action} variant="solid" size="sm" borderRadius="$lg" alignSelf="flex-start">
-                          <HStack space="xs" alignItems="center" px="$1">
-                            <StockIcon size={12} color="#FFFFFF" strokeWidth={2.5} />
-                            <BadgeText fontSize="$xs" fontWeight="$semibold">
-                              {t(stockStatusKey)} ({product.quantity})
-                            </BadgeText>
-                          </HStack>
-                        </Badge>
-                      </VStack>
+                    {/* Product Info */}
+                    <VStack flex={1} space="xs" justifyContent="space-between">
+                      <Text fontSize="$sm" color="$textLight" $dark-color="$textDark" fontWeight="$medium" numberOfLines={1}>
+                        {productName}
+                      </Text>
+                      <HStack justifyContent="space-between" alignItems="flex-end">
+                        <Text fontSize="$xs" color="$textSecondaryLight" $dark-color="$textSecondaryDark">
+                          {t(stockStatusKey)}
+                        </Text>
+                        <Text fontSize="$xs" color="$textLight" $dark-color="$textDark" fontWeight="$semibold">
+                          {formatCurrency(price, storeCurrency, currentLanguage)}
+                        </Text>
+                      </HStack>
                     </VStack>
-                  </Pressable>
-                </Card>
+
+                    {/* Arrow */}
+                    <ChevronRight size={18} color={colors.textSecondary} />
+                  </HStack>
+                </Pressable>
               );
             })}
-          </HStack>
+          </VStack>
+        )}
+
+        {/* Loading More Indicator */}
+        {loadingMore && (
+          <Box py="$6" alignItems="center">
+            <Spinner size="small" color="$primary500" />
+            <Text mt="$2" fontSize="$sm" color="$textSecondaryLight" $dark-color="$textSecondaryDark">
+              {t('loading_more')}
+            </Text>
+          </Box>
+        )}
+
+        {/* No More Products */}
+        {!hasMore && products.length > 0 && !searchQuery.trim() && (
+          <Box py="$6" alignItems="center">
+            <Text fontSize="$sm" color="$textSecondaryLight" $dark-color="$textSecondaryDark">
+              {t('no_more_products')}
+            </Text>
+          </Box>
         )}
       </ScrollView>
 
@@ -524,7 +637,7 @@ export default function ProductsNewScreen() {
                   {getProductName(selectedProduct, currentLanguage)}
                 </Heading>
                 <Text fontSize="$sm" color="$textSecondaryLight" $dark-color="$textSecondaryDark">
-                  {formatCurrency(getProductPrice(selectedProduct).price, 'IQD', currentLanguage)}
+                  {formatCurrency(getProductPrice(selectedProduct).price, storeCurrency, currentLanguage)}
                 </Text>
               </VStack>
             )}
@@ -571,6 +684,234 @@ export default function ProductsNewScreen() {
               </HStack>
             </ActionsheetItem>
           </VStack>
+        </ActionsheetContent>
+      </Actionsheet>
+
+      {/* Filters Action Sheet */}
+      <Actionsheet isOpen={showFiltersSheet} onClose={() => setShowFiltersSheet(false)} zIndex={999}>
+        <ActionsheetBackdrop />
+        <ActionsheetContent zIndex={999} bg="$cardLight" $dark-bg="$cardDark" maxHeight="80%">
+          <ActionsheetDragIndicatorWrapper>
+            <ActionsheetDragIndicator />
+          </ActionsheetDragIndicatorWrapper>
+
+          <ScrollView w="$full" showsVerticalScrollIndicator={false}>
+            <VStack w="$full" p="$4" space="lg">
+              {/* Header */}
+              <HStack justifyContent="space-between" alignItems="center">
+                <Heading size="xl" color="$textLight" $dark-color="$textDark">
+                  {t('filters')}
+                </Heading>
+                {hasActiveFilters() && (
+                  <Pressable onPress={clearAllFilters}>
+                    <Text fontSize="$sm" color="$primary500" fontWeight="$semibold">
+                      {t('clear_all')}
+                    </Text>
+                  </Pressable>
+                )}
+              </HStack>
+
+              <Divider bg="$borderLight" $dark-bg="$borderDark" />
+
+              {/* Status Filter */}
+              <VStack space="sm">
+                <Text fontSize="$md" fontWeight="$semibold" color="$textLight" $dark-color="$textDark">
+                  {t('status')}
+                </Text>
+                <HStack space="sm" flexWrap="wrap">
+                  {(['all', 'active', 'inactive'] as const).map((status) => (
+                    <Pressable
+                      key={status}
+                      onPress={() => {
+                        setFilterActive(status);
+                        haptics.light();
+                      }}
+                      px="$4"
+                      py="$2"
+                      borderRadius="$full"
+                      bg={filterActive === status ? '$primary500' : '$surfaceLight'}
+                      $dark-bg={filterActive === status ? '$primary500' : '$surfaceDark'}
+                      borderWidth={1}
+                      borderColor={filterActive === status ? '$primary500' : '$borderLight'}
+                      $dark-borderColor={filterActive === status ? '$primary500' : '$borderDark'}
+                    >
+                      <Text
+                        fontSize="$sm"
+                        fontWeight="$semibold"
+                        color={filterActive === status ? '$white' : '$textLight'}
+                        $dark-color={filterActive === status ? '$white' : '$textDark'}
+                      >
+                        {status === 'all' ? t('all') : status === 'active' ? t('active') : t('inactive')}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </HStack>
+              </VStack>
+
+              <Divider bg="$borderLight" $dark-bg="$borderDark" />
+
+              {/* Category Filter */}
+              <VStack space="sm">
+                <Text fontSize="$md" fontWeight="$semibold" color="$textLight" $dark-color="$textDark">
+                  {t('category')}
+                </Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  <HStack space="sm">
+                    <Pressable
+                      onPress={() => {
+                        setSelectedCategory(null);
+                        haptics.light();
+                      }}
+                      px="$4"
+                      py="$2"
+                      borderRadius="$full"
+                      bg={!selectedCategory ? '$primary500' : '$surfaceLight'}
+                      $dark-bg={!selectedCategory ? '$primary500' : '$surfaceDark'}
+                      borderWidth={1}
+                      borderColor={!selectedCategory ? '$primary500' : '$borderLight'}
+                      $dark-borderColor={!selectedCategory ? '$primary500' : '$borderDark'}
+                    >
+                      <Text
+                        fontSize="$sm"
+                        fontWeight="$semibold"
+                        color={!selectedCategory ? '$white' : '$textLight'}
+                        $dark-color={!selectedCategory ? '$white' : '$textDark'}
+                      >
+                        {t('all')}
+                      </Text>
+                    </Pressable>
+                    {categories.map((cat) => (
+                      <Pressable
+                        key={cat.id}
+                        onPress={() => {
+                          setSelectedCategory(cat.id);
+                          haptics.light();
+                        }}
+                        px="$4"
+                        py="$2"
+                        borderRadius="$full"
+                        bg={selectedCategory === cat.id ? '$primary500' : '$surfaceLight'}
+                        $dark-bg={selectedCategory === cat.id ? '$primary500' : '$surfaceDark'}
+                        borderWidth={1}
+                        borderColor={selectedCategory === cat.id ? '$primary500' : '$borderLight'}
+                        $dark-borderColor={selectedCategory === cat.id ? '$primary500' : '$borderDark'}
+                      >
+                        <Text
+                          fontSize="$sm"
+                          fontWeight="$semibold"
+                          color={selectedCategory === cat.id ? '$white' : '$textLight'}
+                          $dark-color={selectedCategory === cat.id ? '$white' : '$textDark'}
+                        >
+                          {getCategoryName(cat, currentLanguage)}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </HStack>
+                </ScrollView>
+              </VStack>
+
+              <Divider bg="$borderLight" $dark-bg="$borderDark" />
+
+              {/* Stock Level Filter */}
+              <VStack space="sm">
+                <Text fontSize="$md" fontWeight="$semibold" color="$textLight" $dark-color="$textDark">
+                  {t('stock_level')}
+                </Text>
+                <HStack space="sm" flexWrap="wrap">
+                  {(['all', 'in_stock', 'low_stock', 'out_of_stock'] as const).map((stock) => (
+                    <Pressable
+                      key={stock}
+                      onPress={() => {
+                        setStockFilter(stock);
+                        haptics.light();
+                      }}
+                      px="$4"
+                      py="$2"
+                      borderRadius="$full"
+                      bg={stockFilter === stock ? '$primary500' : '$surfaceLight'}
+                      $dark-bg={stockFilter === stock ? '$primary500' : '$surfaceDark'}
+                      borderWidth={1}
+                      borderColor={stockFilter === stock ? '$primary500' : '$borderLight'}
+                      $dark-borderColor={stockFilter === stock ? '$primary500' : '$borderDark'}
+                    >
+                      <Text
+                        fontSize="$sm"
+                        fontWeight="$semibold"
+                        color={stockFilter === stock ? '$white' : '$textLight'}
+                        $dark-color={stockFilter === stock ? '$white' : '$textDark'}
+                      >
+                        {t(stock === 'all' ? 'all' : stock)}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </HStack>
+              </VStack>
+
+              <Divider bg="$borderLight" $dark-bg="$borderDark" />
+
+              {/* Sort Options */}
+              <VStack space="sm">
+                <Text fontSize="$md" fontWeight="$semibold" color="$textLight" $dark-color="$textDark">
+                  {t('sort_by')}
+                </Text>
+                <HStack space="sm" flexWrap="wrap">
+                  {(['date', 'name', 'price', 'stock'] as const).map((sort) => (
+                    <Pressable
+                      key={sort}
+                      onPress={() => {
+                        if (sortBy === sort) {
+                          setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+                        } else {
+                          setSortBy(sort);
+                          setSortOrder('desc');
+                        }
+                        haptics.selection();
+                      }}
+                      px="$4"
+                      py="$2"
+                      borderRadius="$full"
+                      bg={sortBy === sort ? '$primary500' : '$surfaceLight'}
+                      $dark-bg={sortBy === sort ? '$primary500' : '$surfaceDark'}
+                      borderWidth={1}
+                      borderColor={sortBy === sort ? '$primary500' : '$borderLight'}
+                      $dark-borderColor={sortBy === sort ? '$primary500' : '$borderDark'}
+                      flexDirection="row"
+                      alignItems="center"
+                      space="xs"
+                    >
+                      <Text
+                        fontSize="$sm"
+                        fontWeight="$semibold"
+                        color={sortBy === sort ? '$white' : '$textLight'}
+                        $dark-color={sortBy === sort ? '$white' : '$textDark'}
+                      >
+                        {t(`sort_${sort}`)}
+                      </Text>
+                      {sortBy === sort && (
+                        <Text fontSize="$sm" color="$white" fontWeight="$bold">
+                          {sortOrder === 'asc' ? '↑' : '↓'}
+                        </Text>
+                      )}
+                    </Pressable>
+                  ))}
+                </HStack>
+              </VStack>
+
+              {/* Apply Button */}
+              <Button
+                size="lg"
+                bg="$primary500"
+                onPress={() => {
+                  setShowFiltersSheet(false);
+                  haptics.success();
+                }}
+                $hover-bg="$primary600"
+                $active-bg="$primary700"
+              >
+                <ButtonText fontWeight="$bold">{t('apply_filters')}</ButtonText>
+              </Button>
+            </VStack>
+          </ScrollView>
         </ActionsheetContent>
       </Actionsheet>
     </Box>

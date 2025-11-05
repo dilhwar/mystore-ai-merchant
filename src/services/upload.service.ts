@@ -1,11 +1,31 @@
 import { apiPost } from './api';
 
 export interface UploadedImage {
-  url: string;
-  original: string;
-  thumbnail: string;
-  medium: string;
-  large: string;
+  original: {
+    fileName: string;
+    mimetype: string;
+    size: number;
+  };
+  sizes: {
+    thumbnail: {
+      url: string;
+      fileName: string;
+      width: number;
+      height: number;
+    };
+    medium: {
+      url: string;
+      fileName: string;
+      width: number;
+      height: number;
+    };
+    large: {
+      url: string;
+      fileName: string;
+      width: number;
+      height: number;
+    };
+  };
 }
 
 export interface UploadProgress {

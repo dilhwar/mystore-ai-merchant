@@ -8,6 +8,7 @@ import { config } from '../../gluestack-ui.config';
 import { useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { changeLanguage } from '@/locales/i18n';
+import { Provider as PaperProvider } from 'react-native-paper';
 
 export default function RootLayout() {
   const { colors, isDark } = useTheme();
@@ -33,9 +34,10 @@ export default function RootLayout() {
 
   return (
     <View style={{ flex: 1 }}>
-      <GluestackUIProvider config={config} colorMode={isDark ? 'dark' : 'light'}>
-        <StatusBar style={isDark ? 'light' : 'dark'} />
-        <Stack
+      <PaperProvider>
+        <GluestackUIProvider config={config} colorMode={isDark ? 'dark' : 'light'}>
+          <StatusBar style={isDark ? 'light' : 'dark'} />
+          <Stack
           screenOptions={{
             headerStyle: {
               backgroundColor: colors.card,
@@ -96,8 +98,9 @@ export default function RootLayout() {
               title: 'Order Details',
             }}
           />
-        </Stack>
-      </GluestackUIProvider>
+          </Stack>
+        </GluestackUIProvider>
+      </PaperProvider>
     </View>
   );
 }

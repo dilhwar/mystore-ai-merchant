@@ -1,45 +1,34 @@
 import React, { useState, useEffect } from 'react';
 import {
   View,
-  Text,
   StyleSheet,
   ScrollView,
   Image,
-  TouchableOpacity,
   ActivityIndicator,
   Alert,
-  Dimensions,
 } from 'react-native';
+import { Card, Text, Chip, Divider, Menu, IconButton } from 'react-native-paper';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/store/themeStore';
+import { useAuth } from '@/store/authStore';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { PageHeader } from '@/components/ui/PageHeader';
 import { spacing } from '@/theme/spacing';
-import { design } from '@/theme/design';
 import { haptics } from '@/utils/haptics';
-import {
-  Edit,
-  Trash2,
-  Package,
-  Tag,
-  DollarSign,
-  BarChart3,
-} from 'lucide-react-native';
 import { getProductById, deleteProduct, Product } from '@/services/products.service';
 import { getTranslatedName } from '@/utils/language';
 import { getCurrencyByCode } from '@/constants/currencies';
 
-const { width } = Dimensions.get('window');
-
 export default function ProductDetailsScreen() {
   const { t, i18n } = useTranslation('products');
   const { colors } = useTheme();
+  const { storeCurrency } = useAuth();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
 
   const [loading, setLoading] = useState(true);
   const [product, setProduct] = useState<Product | null>(null);
-  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [showDescription, setShowDescription] = useState(false);
+  const [menuVisible, setMenuVisible] = useState(false);
 
   const currentLanguage = i18n.language;
 
@@ -64,11 +53,13 @@ export default function ProductDetailsScreen() {
   };
 
   const handleEdit = () => {
+    setMenuVisible(false);
     haptics.light();
     router.push(`/products/edit/${id}`);
   };
 
   const handleDelete = () => {
+    setMenuVisible(false);
     haptics.medium();
     Alert.alert(
       t('delete_product'),
@@ -122,9 +113,8 @@ export default function ProductDetailsScreen() {
   const getStockStatus = (): {
     label: string;
     color: string;
-    bgColor: string;
   } => {
-    if (!product) return { label: '', color: '', bgColor: '' };
+    if (!product) return { label: '', color: '' };
 
     const quantity = product.quantity || 0;
 
@@ -132,199 +122,23 @@ export default function ProductDetailsScreen() {
       return {
         label: t('out_of_stock'),
         color: colors.error,
-        bgColor: `${colors.error}15`,
       };
     } else if (quantity < 10) {
       return {
         label: t('low_stock'),
         color: '#FF9800',
-        bgColor: '#FF980015',
       };
     } else {
       return {
         label: t('in_stock'),
         color: colors.success,
-        bgColor: `${colors.success}15`,
       };
     }
   };
 
-  const styles = StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: colors.background,
-    },
-    loadingContainer: {
-      flex: 1,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    scrollContainer: {
-      paddingBottom: 100,
-    },
-    imageContainer: {
-      width: '100%',
-      height: width,
-      backgroundColor: colors.card,
-    },
-    mainImage: {
-      width: '100%',
-      height: '100%',
-    },
-    thumbnailContainer: {
-      paddingHorizontal: spacing.md,
-      paddingVertical: spacing.sm,
-      backgroundColor: colors.background,
-    },
-    thumbnailScroll: {
-      gap: spacing.sm,
-    },
-    thumbnail: {
-      width: 60,
-      height: 60,
-      borderRadius: design.borderRadius.md,
-      borderWidth: 2,
-      borderColor: 'transparent',
-    },
-    thumbnailSelected: {
-      borderColor: colors.primary,
-    },
-    thumbnailImage: {
-      width: '100%',
-      height: '100%',
-      borderRadius: design.borderRadius.md - 2,
-    },
-    contentContainer: {
-      paddingHorizontal: spacing.md,
-      paddingTop: spacing.md,
-    },
-    header: {
-      marginBottom: spacing.md,
-    },
-    statusBadge: {
-      alignSelf: 'flex-start',
-      paddingHorizontal: spacing.sm,
-      paddingVertical: spacing.xs,
-      borderRadius: design.borderRadius.sm,
-      marginBottom: spacing.xs,
-    },
-    statusText: {
-      fontSize: 12,
-      fontWeight: '600',
-    },
-    productName: {
-      fontSize: 24,
-      fontWeight: '700',
-      color: colors.text,
-      marginBottom: spacing.xs,
-    },
-    categoryText: {
-      fontSize: 14,
-      color: colors.textSecondary,
-    },
-    priceSection: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: spacing.sm,
-      marginBottom: spacing.lg,
-      paddingVertical: spacing.md,
-      borderTopWidth: 1,
-      borderBottomWidth: 1,
-      borderColor: colors.border,
-    },
-    priceLabel: {
-      fontSize: 14,
-      color: colors.textSecondary,
-    },
-    priceValue: {
-      fontSize: 32,
-      fontWeight: '700',
-      color: colors.primary,
-    },
-    section: {
-      marginBottom: spacing.lg,
-    },
-    sectionTitle: {
-      fontSize: 18,
-      fontWeight: '600',
-      color: colors.text,
-      marginBottom: spacing.sm,
-    },
-    description: {
-      fontSize: 15,
-      lineHeight: 24,
-      color: colors.text,
-    },
-    infoGrid: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: spacing.md,
-    },
-    infoCard: {
-      flex: 1,
-      minWidth: '45%',
-      backgroundColor: colors.card,
-      borderRadius: design.borderRadius.md,
-      padding: spacing.md,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    infoCardHeader: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: spacing.xs,
-      marginBottom: spacing.xs,
-    },
-    infoCardLabel: {
-      fontSize: 13,
-      color: colors.textSecondary,
-      fontWeight: '500',
-    },
-    infoCardValue: {
-      fontSize: 18,
-      fontWeight: '600',
-      color: colors.text,
-    },
-    actionButtons: {
-      position: 'absolute',
-      bottom: 0,
-      left: 0,
-      right: 0,
-      flexDirection: 'row',
-      gap: spacing.md,
-      padding: spacing.md,
-      backgroundColor: colors.background,
-      borderTopWidth: 1,
-      borderTopColor: colors.border,
-      ...design.shadows.lg,
-    },
-    actionButton: {
-      flex: 1,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      paddingVertical: spacing.md,
-      borderRadius: design.borderRadius.md,
-      gap: spacing.xs,
-      ...design.shadows.sm,
-    },
-    editButton: {
-      backgroundColor: colors.primary,
-    },
-    deleteButton: {
-      backgroundColor: colors.error,
-    },
-    actionButtonText: {
-      color: '#FFFFFF',
-      fontSize: 16,
-      fontWeight: '600',
-    },
-  });
-
   if (loading) {
     return (
-      <View style={styles.container}>
-        <PageHeader title={t('loading')} showBack />
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
@@ -334,8 +148,7 @@ export default function ProductDetailsScreen() {
 
   if (!product) {
     return (
-      <View style={styles.container}>
-        <PageHeader title={t('error')} showBack />
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.loadingContainer}>
           <Text style={{ color: colors.text }}>{t('failed_to_load_product')}</Text>
         </View>
@@ -344,147 +157,265 @@ export default function ProductDetailsScreen() {
   }
 
   const stockStatus = getStockStatus();
-  const currencyInfo = getCurrencyByCode(product.currency || 'USD');
+  const currencyInfo = getCurrencyByCode(storeCurrency);
+  const mainImage =
+    product.images && product.images.length > 0
+      ? typeof product.images[0] === 'string'
+        ? product.images[0]
+        : product.images[0].url
+      : null;
 
   return (
-    <View style={styles.container}>
-      <PageHeader title={getProductName()} showBack />
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      {/* Header with Menu */}
+      <View style={[styles.header, { backgroundColor: colors.background }]}>
+        <View style={styles.headerContent}>
+          <View style={styles.headerText}>
+            <Text variant="titleLarge" style={{ color: colors.text, fontWeight: '600' }}>
+              {getProductName()}
+            </Text>
+            <Text variant="bodyMedium" style={{ color: colors.textSecondary }}>
+              {getCategoryName()}
+            </Text>
+          </View>
+          <Menu
+            visible={menuVisible}
+            onDismiss={() => setMenuVisible(false)}
+            anchor={
+              <IconButton
+                icon="dots-vertical"
+                size={24}
+                iconColor={colors.text}
+                onPress={() => {
+                  haptics.light();
+                  setMenuVisible(true);
+                }}
+              />
+            }
+          >
+            <Menu.Item
+              onPress={handleEdit}
+              title={t('edit_product')}
+              leadingIcon="pencil"
+            />
+            <Divider />
+            <Menu.Item
+              onPress={handleDelete}
+              title={t('delete')}
+              leadingIcon="delete"
+              titleStyle={{ color: colors.error }}
+            />
+          </Menu>
+        </View>
+      </View>
 
-      <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {/* Main Image */}
-        {product.images && product.images.length > 0 && (
-          <>
-            <View style={styles.imageContainer}>
+        {mainImage && (
+          <Card style={styles.imageCard}>
+            <View style={styles.imageWrapper}>
               <Image
-                source={{ uri: product.images[selectedImageIndex] }}
+                source={{ uri: mainImage }}
                 style={styles.mainImage}
-                resizeMode="cover"
+                resizeMode="contain"
               />
             </View>
-
-            {/* Thumbnails */}
-            {product.images.length > 1 && (
-              <View style={styles.thumbnailContainer}>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.thumbnailScroll}
-                >
-                  {product.images.map((img, index) => (
-                    <TouchableOpacity
-                      key={index}
-                      style={[
-                        styles.thumbnail,
-                        selectedImageIndex === index && styles.thumbnailSelected,
-                      ]}
-                      onPress={() => {
-                        haptics.light();
-                        setSelectedImageIndex(index);
-                      }}
-                    >
-                      <Image source={{ uri: img }} style={styles.thumbnailImage} />
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-            )}
-          </>
+          </Card>
         )}
 
-        <View style={styles.contentContainer}>
-          {/* Header */}
-          <View style={styles.header}>
-            <View
-              style={[
-                styles.statusBadge,
-                { backgroundColor: stockStatus.bgColor },
-              ]}
-            >
-              <Text style={[styles.statusText, { color: stockStatus.color }]}>
-                {stockStatus.label}
-              </Text>
-            </View>
-            <Text style={styles.productName}>{getProductName()}</Text>
-            <Text style={styles.categoryText}>{getCategoryName()}</Text>
-          </View>
-
-          {/* Price */}
-          <View style={styles.priceSection}>
-            <DollarSign size={24} color={colors.primary} />
-            <View>
-              <Text style={styles.priceLabel}>{t('price')}</Text>
-              <Text style={styles.priceValue}>
-                {currencyInfo?.symbol || product.currency}{' '}
-                {product.price?.toFixed(2)}
-              </Text>
-            </View>
-          </View>
-
-          {/* Description */}
-          {getProductDescription() && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>{t('description')}</Text>
-              <Text style={styles.description}>{getProductDescription()}</Text>
-            </View>
-          )}
-
-          {/* Info Cards */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>{t('product_information')}</Text>
-            <View style={styles.infoGrid}>
-              {/* Quantity */}
-              <View style={styles.infoCard}>
-                <View style={styles.infoCardHeader}>
-                  <Package size={16} color={colors.textSecondary} />
-                  <Text style={styles.infoCardLabel}>{t('quantity')}</Text>
-                </View>
-                <Text style={styles.infoCardValue}>{product.quantity || 0}</Text>
-              </View>
-
-              {/* SKU */}
-              {product.sku && (
-                <View style={styles.infoCard}>
-                  <View style={styles.infoCardHeader}>
-                    <Tag size={16} color={colors.textSecondary} />
-                    <Text style={styles.infoCardLabel}>{t('sku')}</Text>
+        {/* Thumbnail Images */}
+        {product.images && product.images.length > 1 && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.thumbnailsContainer}
+          >
+            {product.images.slice(0, 5).map((img, index) => {
+              const imageUrl = typeof img === 'string' ? img : img.url;
+              return (
+                <Card key={index} style={styles.thumbnail}>
+                  <View style={styles.thumbnailWrapper}>
+                    <Image
+                      source={{ uri: imageUrl }}
+                      style={styles.thumbnailImage}
+                      resizeMode="cover"
+                    />
                   </View>
-                  <Text style={styles.infoCardValue}>{product.sku}</Text>
-                </View>
-              )}
+                </Card>
+              );
+            })}
+          </ScrollView>
+        )}
 
-              {/* Status */}
-              <View style={styles.infoCard}>
-                <View style={styles.infoCardHeader}>
-                  <BarChart3 size={16} color={colors.textSecondary} />
-                  <Text style={styles.infoCardLabel}>{t('active')}</Text>
-                </View>
-                <Text style={styles.infoCardValue}>
-                  {product.isActive ? t('active') : t('inactive')}
-                </Text>
-              </View>
-            </View>
-          </View>
+        {/* Price Card */}
+        <Card style={styles.card}>
+          <Card.Content>
+            <Text variant="labelMedium" style={{ color: colors.textSecondary, marginBottom: 4 }}>
+              {t('price')}
+            </Text>
+            <Text variant="headlineMedium" style={{ color: colors.primary, fontWeight: 'bold' }}>
+              {currencyInfo?.symbol || storeCurrency} {product.price?.toFixed(2)}
+            </Text>
+          </Card.Content>
+        </Card>
+
+        {/* Info Cards */}
+        <View style={styles.infoRow}>
+          <Card style={styles.infoCard}>
+            <Card.Content style={styles.infoCardContent}>
+              <Text variant="labelSmall" style={{ color: colors.textSecondary }}>
+                {t('quantity')}
+              </Text>
+              <Text variant="titleMedium" style={{ color: colors.text, fontWeight: 'bold' }}>
+                {product.quantity || 0}
+              </Text>
+            </Card.Content>
+          </Card>
+
+          <Card style={styles.infoCard}>
+            <Card.Content style={styles.infoCardContent}>
+              <Text variant="labelSmall" style={{ color: colors.textSecondary }}>
+                {t('stock')}
+              </Text>
+              <Chip
+                mode="flat"
+                style={{ backgroundColor: `${stockStatus.color}20`, marginTop: 4 }}
+                textStyle={{ color: stockStatus.color, fontSize: 11, fontWeight: 'bold' }}
+              >
+                {stockStatus.label}
+              </Chip>
+            </Card.Content>
+          </Card>
+
+          <Card style={styles.infoCard}>
+            <Card.Content style={styles.infoCardContent}>
+              <Text variant="labelSmall" style={{ color: colors.textSecondary }}>
+                {t('status')}
+              </Text>
+              <Chip
+                mode="flat"
+                style={{
+                  backgroundColor: product.isActive
+                    ? `${colors.success}20`
+                    : `${colors.textSecondary}20`,
+                  marginTop: 4,
+                }}
+                textStyle={{
+                  color: product.isActive ? colors.success : colors.textSecondary,
+                  fontSize: 11,
+                  fontWeight: 'bold',
+                }}
+              >
+                {product.isActive ? t('active') : t('inactive')}
+              </Chip>
+            </Card.Content>
+          </Card>
         </View>
+
+        {/* Description Card */}
+        {getProductDescription() && (
+          <Card style={styles.card}>
+            <Card.Title
+              title={t('description')}
+              titleVariant="titleMedium"
+              right={(props) => (
+                <IconButton
+                  {...props}
+                  icon={showDescription ? 'chevron-up' : 'chevron-down'}
+                  onPress={() => {
+                    haptics.light();
+                    setShowDescription(!showDescription);
+                  }}
+                />
+              )}
+            />
+            {showDescription && (
+              <Card.Content>
+                <Text variant="bodyMedium" style={{ color: colors.text, lineHeight: 22 }}>
+                  {getProductDescription()}
+                </Text>
+              </Card.Content>
+            )}
+          </Card>
+        )}
+
+        <View style={{ height: spacing.lg }} />
       </ScrollView>
-
-      {/* Action Buttons */}
-      <View style={styles.actionButtons}>
-        <TouchableOpacity
-          style={[styles.actionButton, styles.editButton]}
-          onPress={handleEdit}
-        >
-          <Edit size={20} color="#FFFFFF" />
-          <Text style={styles.actionButtonText}>{t('edit_product')}</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.actionButton, styles.deleteButton]}
-          onPress={handleDelete}
-        >
-          <Trash2 size={20} color="#FFFFFF" />
-          <Text style={styles.actionButtonText}>{t('delete')}</Text>
-        </TouchableOpacity>
-      </View>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  header: {
+    paddingTop: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.sm,
+  },
+  headerContent: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+  },
+  headerText: {
+    flex: 1,
+    paddingRight: spacing.sm,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  imageCard: {
+    margin: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  imageWrapper: {
+    overflow: 'hidden',
+    borderRadius: 12,
+  },
+  mainImage: {
+    width: '100%',
+    height: 280,
+  },
+  thumbnailsContainer: {
+    paddingHorizontal: spacing.md,
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  thumbnail: {
+    width: 70,
+    height: 70,
+  },
+  thumbnailWrapper: {
+    overflow: 'hidden',
+    borderRadius: 8,
+  },
+  thumbnailImage: {
+    width: '100%',
+    height: '100%',
+  },
+  card: {
+    margin: spacing.md,
+    marginTop: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    paddingHorizontal: spacing.md,
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  infoCard: {
+    flex: 1,
+  },
+  infoCardContent: {
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+  },
+});

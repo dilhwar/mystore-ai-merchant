@@ -162,8 +162,10 @@ api.interceptors.response.use(
       return Promise.reject(new Error('The requested resource was not found.'));
     }
 
+    // For 500 errors, try to get the actual error message from the server
     if (error.response?.status === 500) {
-      return Promise.reject(new Error('Server error. Please try again later.'));
+      const serverMessage = error.response?.data?.message || error.message;
+      return Promise.reject(new Error(serverMessage || 'Server error. Please try again later.'));
     }
 
     // Default error handling

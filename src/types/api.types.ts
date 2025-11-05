@@ -66,6 +66,7 @@ export interface Store {
   description?: string;
   logo?: string;
   banner?: string;
+  defaultCurrency?: string;
   isActive: boolean;
   merchantId: string;
   createdAt: string;

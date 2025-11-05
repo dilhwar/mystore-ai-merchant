@@ -241,11 +241,26 @@ export default function EditProductScreen() {
         const imageUris = [selectedImage.uri];
         const uploadedImages = await uploadMultipleImages(imageUris, 'products');
 
+        console.log('Uploaded images:', uploadedImages);
+
         if (!uploadedImages || uploadedImages.length === 0) {
           throw new Error('Failed to upload image for AI');
         }
 
-        s3ImageUrl = uploadedImages[0].url;
+        // Extract URL from the upload response structure
+        // Backend returns: { original, sizes: { large: { url, ... }, medium: { url, ... } } }
+        s3ImageUrl = uploadedImages[0]?.sizes?.large?.url || uploadedImages[0]?.sizes?.medium?.url;
+
+        console.log('S3 Image URL:', s3ImageUrl);
+
+        if (!s3ImageUrl) {
+          throw new Error('Failed to get image URL from upload response');
+        }
+      }
+
+      // Validate that we have a valid S3 URL
+      if (!s3ImageUrl) {
+        throw new Error('No valid image URL available for AI generation');
       }
 
       setUploadStatus(t('generating_content') || 'Generating content...');
@@ -273,7 +288,12 @@ export default function EditProductScreen() {
       Alert.alert(t('success'), t('ai_content_generated'));
     } catch (error: any) {
       console.error('AI generation error:', error);
-      const errorMessage = error.response?.data?.message || error.message || t('ai_generation_failed');
+      console.error('Error details:', {
+        message: error.message,
+        responseData: error.response?.data,
+        responseMessage: error.response?.data?.message,
+      });
+      const errorMessage = error.message || t('ai_generation_failed');
       Alert.alert(t('error'), errorMessage);
     } finally {
       setAiLoading(false);
@@ -441,7 +461,7 @@ export default function EditProductScreen() {
       backgroundColor: colors.card,
       borderWidth: 1,
       borderColor: colors.border,
-      borderRadius: design.borderRadius.md,
+      borderRadius: design.radius.md,
       padding: spacing.md,
       fontSize: 14,
       color: colors.text,
@@ -455,7 +475,7 @@ export default function EditProductScreen() {
       justifyContent: 'space-between',
       alignItems: 'center',
       backgroundColor: colors.card,
-      borderRadius: design.borderRadius.md,
+      borderRadius: design.radius.md,
       padding: spacing.md,
       borderWidth: 1,
       borderColor: colors.border,
@@ -471,7 +491,7 @@ export default function EditProductScreen() {
     imageItem: {
       width: 100,
       height: 100,
-      borderRadius: design.borderRadius.md,
+      borderRadius: design.radius.md,
       position: 'relative',
       borderWidth: 2,
       borderColor: 'transparent',
@@ -482,7 +502,7 @@ export default function EditProductScreen() {
     image: {
       width: '100%',
       height: '100%',
-      borderRadius: design.borderRadius.md,
+      borderRadius: design.radius.md,
     },
     removeImageButton: {
       position: 'absolute',
@@ -494,7 +514,7 @@ export default function EditProductScreen() {
       backgroundColor: colors.error,
       justifyContent: 'center',
       alignItems: 'center',
-      ...design.shadows.md,
+      ...design.shadow.md,
     },
     aiSelectionBadge: {
       position: 'absolute',
@@ -513,7 +533,7 @@ export default function EditProductScreen() {
     addImageButton: {
       width: 100,
       height: 100,
-      borderRadius: design.borderRadius.md,
+      borderRadius: design.radius.md,
       borderWidth: 2,
       borderColor: colors.border,
       borderStyle: 'dashed',
@@ -528,9 +548,9 @@ export default function EditProductScreen() {
       backgroundColor: colors.primary,
       paddingVertical: spacing.md,
       paddingHorizontal: spacing.lg,
-      borderRadius: design.borderRadius.md,
+      borderRadius: design.radius.md,
       gap: spacing.xs,
-      ...design.shadows.sm,
+      ...design.shadow.sm,
     },
     aiButtonDisabled: {
       opacity: 0.5,
@@ -550,16 +570,16 @@ export default function EditProductScreen() {
       paddingVertical: spacing.md,
       borderTopWidth: 1,
       borderTopColor: colors.border,
-      ...design.shadows.lg,
+      ...design.shadow.lg,
     },
     submitButtonInner: {
       backgroundColor: colors.primary,
       paddingVertical: spacing.md,
-      borderRadius: design.borderRadius.md,
+      borderRadius: design.radius.md,
       alignItems: 'center',
       justifyContent: 'center',
       minHeight: 48,
-      ...design.shadows.md,
+      ...design.shadow.md,
     },
     submitButtonDisabled: {
       opacity: 0.5,
@@ -761,7 +781,7 @@ export default function EditProductScreen() {
                   style={{
                     paddingHorizontal: spacing.md,
                     paddingVertical: spacing.sm,
-                    borderRadius: design.borderRadius.md,
+                    borderRadius: design.radius.md,
                     backgroundColor:
                       formData.categoryId === category.id ? colors.primary : colors.card,
                     borderWidth: 1,

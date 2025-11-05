@@ -109,6 +109,18 @@ export const generateAllContentWithImage = async (params: {
   try {
     const { imageUri, category, storeLanguages, dashboardLanguage } = params;
 
+    console.log('[generateAllContentWithImage] Input params:', {
+      imageUri,
+      category,
+      storeLanguages,
+      dashboardLanguage,
+    });
+
+    // Validate imageUri
+    if (!imageUri) {
+      throw new Error('imageUri is required for AI content generation');
+    }
+
     // For Mobile: We're using imageUri directly
     // In production, this should be uploaded to S3 first to get a URL
     // For now, backend needs to handle local URIs or we use a different approach
@@ -118,8 +130,11 @@ export const generateAllContentWithImage = async (params: {
     // Generate content for each language
     for (const lang of storeLanguages) {
       try {
+        console.log(`[generateAllContentWithImage] Generating content for language: ${lang}`);
+        console.log(`[generateAllContentWithImage] Using imageUrl: ${imageUri}`);
+
         const content = await generateAllProductContent({
-          imageUrl: imageUri, // TODO: Upload to S3 first in production
+          imageUrl: imageUri, // S3 URL passed from upload
           category,
           language: lang,
           dashboardLanguage: dashboardLanguage || lang,
