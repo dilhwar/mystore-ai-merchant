@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { ScrollView, RefreshControl, Dimensions } from 'react-native';
+import { ScrollView, RefreshControl, Dimensions, Linking } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/store/themeStore';
 import { useAuth } from '@/store/authStore';
 import { getDashboardStats, DashboardStats } from '@/services/dashboard.service';
+import { getStore, Store as StoreData } from '@/services/store.service';
 import { formatCurrency } from '@/utils/currency';
 import { DEFAULT_CURRENCY } from '@/constants/currencies';
 import { haptics } from '@/utils/haptics';
@@ -46,6 +47,9 @@ export default function DashboardV2Screen() {
   const { colors, isDark } = useTheme();
   const { user } = useAuth();
 
+  // Check RTL dynamically based on current language
+  const isRTL = i18n.language === 'ar';
+
   const [stats, setStats] = useState<DashboardStats>({
     totalSales: 0,
     totalRevenue: 0,
@@ -53,6 +57,7 @@ export default function DashboardV2Screen() {
     totalCustomers: 0,
     totalProducts: 0,
   });
+  const [store, setStore] = useState<StoreData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -82,8 +87,20 @@ export default function DashboardV2Screen() {
         setIsLoading(true);
       }
 
-      const data = await getDashboardStats();
-      setStats(data);
+      // Load both stats and store data in parallel
+      const [statsData, storeData] = await Promise.all([
+        getDashboardStats(),
+        getStore().catch(() => null), // Don't fail if store API fails
+      ]);
+
+      setStats(statsData);
+      if (storeData) {
+        console.log('📊 Store Data:', storeData);
+        console.log('🏪 Store Name (EN):', storeData.name);
+        console.log('🏪 Store Name (AR):', storeData.nameAr);
+        console.log('🏷️ Store StoreName:', storeData.storeName);
+        setStore(storeData);
+      }
 
       if (isRefresh) {
         haptics.success();
@@ -104,6 +121,36 @@ export default function DashboardV2Screen() {
 
   const merchantCurrency = stats.currency || DEFAULT_CURRENCY;
   const currentLocale = i18n.language || 'en';
+
+  // Function to get store name based on current language
+  const getStoreName = () => {
+    if (!store) return user?.firstName || 'My Store';
+
+    // Get language code (e.g., 'ar', 'en', 'hi', 'es', 'fr')
+    const lang = i18n.language;
+
+    // Try to get localized name using dynamic key
+    const langKey = `name${lang.charAt(0).toUpperCase() + lang.slice(1)}` as keyof StoreData;
+    const localizedName = store[langKey] as string | undefined;
+
+    // Fallback: localized name -> storeName -> name -> user first name -> 'My Store'
+    return localizedName || store.storeName || store.name || user?.firstName || 'My Store';
+  };
+
+  // Function to open store URL
+  const handleOpenStore = async () => {
+    try {
+      haptics.light();
+      if (store?.storeUrl) {
+        const canOpen = await Linking.canOpenURL(store.storeUrl);
+        if (canOpen) {
+          await Linking.openURL(store.storeUrl);
+        }
+      }
+    } catch (error) {
+      console.error('Error opening store URL:', error);
+    }
+  };
 
   // Stats configuration
   const mainStats: StatItem[] = [
@@ -185,20 +232,21 @@ export default function DashboardV2Screen() {
       <ScrollView
         refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={() => loadDashboardData(true)} tintColor={colors.primary} colors={[colors.primary]} />}
         showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 90 }}
       >
         {/* Header */}
         <Box px="$4" pt="$12" pb="$4">
-          <HStack justifyContent="space-between" alignItems="flex-start" mb="$3">
-            <VStack space="xs" flex={1}>
-              <Text fontSize="$sm" color="$textSecondaryLight" $dark-color="$textSecondaryDark">
-                {t('welcome')}
-              </Text>
-              <Heading size="xl" color="$textLight" $dark-color="$textDark">
-                {(user as any)?.firstName || 'Merchant'}! 👋
-              </Heading>
-            </VStack>
+          <HStack justifyContent="space-between" alignItems="center" mb="$3" flexDirection={isRTL ? 'row-reverse' : 'row'}>
+            <Heading
+              size="md"
+              color="$textLight"
+              $dark-color="$textDark"
+              textAlign={isRTL ? 'right' : 'left'}
+            >
+              {getStoreName()}
+            </Heading>
 
-            <HStack space="sm" mt="$1">
+            <HStack space="sm" flexDirection={isRTL ? 'row-reverse' : 'row'}>
               <Pressable
                 onPress={() => {
                   haptics.light();
@@ -214,25 +262,55 @@ export default function DashboardV2Screen() {
                 position="relative"
               >
                 <Bell size={20} color={colors.text} />
-                <Box position="absolute" top={8} right={8} w={8} h={8} borderRadius="$full" bg="$error400" />
+                <Box position="absolute" top={8} right={isRTL ? undefined : 8} left={isRTL ? 8 : undefined} w={8} h={8} borderRadius="$full" bg="$error400" />
               </Pressable>
 
-              <Pressable onPress={() => haptics.light()} w={44} h={44} borderRadius="$full" bg="$primary500" alignItems="center" justifyContent="center">
+              <Pressable onPress={handleOpenStore} w={44} h={44} borderRadius="$full" bg="$primary500" alignItems="center" justifyContent="center">
                 <Store size={20} color="#FFFFFF" />
               </Pressable>
             </HStack>
           </HStack>
 
           {/* Today Summary */}
-          <HStack mt="$4" p="$3" bg="$primary50" $dark-bg="$primary950" borderRadius="$lg" alignItems="center" space="sm">
+          <HStack
+            mt="$4"
+            p="$3"
+            borderRadius="$lg"
+            alignItems="center"
+            space="sm"
+            flexDirection={isRTL ? 'row-reverse' : 'row'}
+            bg={isDark ? undefined : '$primary50'}
+            borderWidth={2}
+            borderColor={isDark ? undefined : 'transparent'}
+            style={
+              isDark
+                ? {
+                    backgroundColor: 'rgba(59, 130, 246, 0.08)',
+                    borderColor: 'rgba(59, 130, 246, 0.3)',
+                    borderStyle: 'solid',
+                  }
+                : undefined
+            }
+          >
             <Box w={36} h={36} borderRadius="$full" bg="$primary500" alignItems="center" justifyContent="center">
               <Activity size={18} color="#FFFFFF" />
             </Box>
             <VStack flex={1}>
-              <Text fontSize="$xs" color="$primary600" $dark-color="$primary400" fontWeight="$medium">
-                Today's Performance
+              <Text
+                fontSize="$xs"
+                color="$primary600"
+                $dark-color="$primary400"
+                fontWeight="$medium"
+                textAlign={isRTL ? 'right' : 'left'}
+              >
+                {t('todays_performance')}
               </Text>
-              <Heading size="sm" color="$primary700" $dark-color="$primary300">
+              <Heading
+                size="sm"
+                color="$primary700"
+                $dark-color="$white"
+                textAlign={isRTL ? 'right' : 'left'}
+              >
                 {formatCurrency(stats.totalSales * 0.15, merchantCurrency, currentLocale)}
               </Heading>
             </VStack>
@@ -250,11 +328,17 @@ export default function DashboardV2Screen() {
         {/* Quick Actions */}
         <Box px="$4" mb="$6">
           <VStack space="sm">
-            <Heading size="md" color="$textLight" $dark-color="$textDark" mb="$2">
-              Quick Actions
+            <Heading
+              size="md"
+              color="$textLight"
+              $dark-color="$textDark"
+              mb="$2"
+              textAlign={isRTL ? 'right' : 'left'}
+            >
+              {t('quick_actions')}
             </Heading>
 
-            <HStack space="md">
+            <HStack space="md" flexDirection={isRTL ? 'row-reverse' : 'row'}>
               <Pressable
                 onPress={() => {
                   haptics.light();
@@ -268,14 +352,14 @@ export default function DashboardV2Screen() {
               >
                 <Package size={24} color="#FFFFFF" strokeWidth={2} />
                 <Text fontSize="$sm" color="$white" fontWeight="$semibold" mt="$2">
-                  Add Product
+                  {t('add_product')}
                 </Text>
               </Pressable>
 
               <Pressable onPress={() => haptics.light()} flex={1} p="$4" borderRadius="$xl" bg="$success400" alignItems="center">
                 <ShoppingBag size={24} color="#FFFFFF" strokeWidth={2} />
                 <Text fontSize="$sm" color="$white" fontWeight="$semibold" mt="$2">
-                  New Order
+                  {t('new_order')}
                 </Text>
               </Pressable>
             </HStack>

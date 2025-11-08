@@ -5,6 +5,7 @@ import { LucideIcon } from 'lucide-react-native';
 import { TrendingUp, TrendingDown } from 'lucide-react-native';
 import { useTheme } from '@/store/themeStore';
 import { haptics } from '@/utils/haptics';
+import { useTranslation } from 'react-i18next';
 
 const { width } = Dimensions.get('window');
 
@@ -29,6 +30,10 @@ interface StatsWidgetProps {
 
 export function StatsWidget({ stats, columns = 2, animationDelay = 100, size = 'md' }: StatsWidgetProps) {
   const { colors, isDark } = useTheme();
+  const { i18n } = useTranslation();
+
+  // Check RTL dynamically based on current language
+  const isRTL = i18n.language === 'ar';
 
   const cardSpacing = 16;
   const totalSpacing = cardSpacing * (columns + 1);
@@ -93,7 +98,7 @@ export function StatsWidget({ stats, columns = 2, animationDelay = 100, size = '
   const sizeStyles = getSizeStyles();
 
   return (
-    <HStack space="md" flexWrap="wrap" justifyContent="space-between">
+    <HStack space="md" flexWrap="wrap" justifyContent="space-between" flexDirection={isRTL ? 'row-reverse' : 'row'}>
       {stats.map((stat, index) => {
         const Icon = stat.icon;
         const statColors = getColorForStat(stat.color);
@@ -140,6 +145,7 @@ export function StatsWidget({ stats, columns = 2, animationDelay = 100, size = '
                   borderWidth={0}
                   borderColor="transparent"
                   style={isDark ? { backgroundColor: statColors.iconBg } : undefined}
+                  alignSelf={isRTL ? 'flex-end' : 'flex-start'}
                 >
                   <Icon
                     size={sizeStyles.iconSize}
@@ -149,18 +155,32 @@ export function StatsWidget({ stats, columns = 2, animationDelay = 100, size = '
                 </Box>
 
                 {/* Value */}
-                <Heading size={sizeStyles.valueSize} color="$textLight" $dark-color="$white" numberOfLines={1}>
+                <Heading
+                  size={sizeStyles.valueSize}
+                  color="$textLight"
+                  $dark-color="$white"
+                  numberOfLines={1}
+                  textAlign={isRTL ? 'right' : 'left'}
+                >
                   {stat.value}
                 </Heading>
 
                 {/* Title & Trend */}
-                <HStack justifyContent="space-between" alignItems="center">
-                  <Text fontSize={sizeStyles.titleSize} color="$textSecondaryLight" $dark-color="$white" fontWeight="$medium" numberOfLines={1} flex={1}>
+                <HStack justifyContent="space-between" alignItems="center" flexDirection={isRTL ? 'row-reverse' : 'row'}>
+                  <Text
+                    fontSize={sizeStyles.titleSize}
+                    color="$textSecondaryLight"
+                    $dark-color="$white"
+                    fontWeight="$medium"
+                    numberOfLines={1}
+                    flex={1}
+                    textAlign={isRTL ? 'right' : 'left'}
+                  >
                     {stat.title}
                   </Text>
 
                   {stat.trend && (
-                    <HStack space="xs" alignItems="center">
+                    <HStack space="xs" alignItems="center" flexDirection={isRTL ? 'row-reverse' : 'row'}>
                       {stat.trendUp ? (
                         <TrendingUp size={sizeStyles.iconSize === 18 ? 10 : sizeStyles.iconSize === 26 ? 14 : 12} color={colors.success400} strokeWidth={2.5} />
                       ) : (

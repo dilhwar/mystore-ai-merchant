@@ -501,6 +501,7 @@ export default function ProductsNewScreen() {
       <ScrollView
         px="$4"
         showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 90 }}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />
         }

@@ -280,6 +280,7 @@ export default function OrdersNewScreen() {
       <ScrollView
         px="$4"
         showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 90 }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}

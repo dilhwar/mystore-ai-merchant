@@ -460,6 +460,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: spacing.m,
+    paddingBottom: 90,
   },
   categoryCard: {
     borderRadius: 12,

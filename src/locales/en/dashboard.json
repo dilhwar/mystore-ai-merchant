@@ -16,5 +16,9 @@
   "error": "Error",
   "retry": "Retry",
   "no_data": "No data available",
-  "currency": "SAR"
+  "currency": "SAR",
+  "todays_performance": "Today's Performance",
+  "quick_actions": "Quick Actions",
+  "add_product": "Add Product",
+  "new_order": "New Order"
 }

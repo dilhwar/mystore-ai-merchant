@@ -16,5 +16,9 @@
   "error": "خطأ",
   "retry": "إعادة المحاولة",
   "no_data": "لا توجد بيانات",
-  "currency": "ر.س"
+  "currency": "ر.س",
+  "todays_performance": "أداء اليوم",
+  "quick_actions": "إجراءات سريعة",
+  "add_product": "إضافة منتج",
+  "new_order": "طلب جديد"
 }

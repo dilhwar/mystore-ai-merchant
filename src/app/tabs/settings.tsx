@@ -324,7 +324,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: spacing.m,
-    paddingBottom: spacing.xl * 2,
+    paddingBottom: 90,
   },
 
   // Profile Card

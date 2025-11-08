@@ -73,8 +73,10 @@ i18n
 // Set RTL for Arabic
 if (i18n.language === 'ar') {
   I18nManager.forceRTL(true);
+  I18nManager.allowRTL(true);
 } else {
   I18nManager.forceRTL(false);
+  I18nManager.allowRTL(false);
 }
 
 // Function to change language

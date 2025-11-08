@@ -6,11 +6,17 @@ import { apiGet } from './api';
 
 export interface Store {
   id: string;
-  storeName: string;
+  name: string; // Store name (default/English)
+  nameAr?: string; // Store name (Arabic)
+  nameHi?: string; // Store name (Hindi)
+  nameEs?: string; // Store name (Spanish)
+  nameFr?: string; // Store name (French)
+  // Add more languages as needed
+  storeName?: string; // Fallback for compatibility
   slug: string;
   isPublished: boolean;
   customDomain?: string;
-  storeUrl: string; // Full URL to the store
+  storeUrl?: string; // Full URL to the store
 }
 
 export interface StoreResponse {
@@ -27,8 +33,27 @@ export interface StoreResponse {
  */
 export const getStore = async (): Promise<Store> => {
   try {
-    const response = await apiGet<{ success: boolean; data: Store }>('/merchant/store');
-    return response.data.data;
+    const response = await apiGet<{ message: string; data: Store[] | Store }>('/stores');
+
+    // Handle both array and single store response
+    const storeData = Array.isArray(response.data.data)
+      ? response.data.data[0]
+      : response.data.data;
+
+    if (!storeData) {
+      throw new Error('No store found');
+    }
+
+    // Build storeUrl if not provided
+    const storeUrl = storeData.customDomain
+      ? `https://${storeData.customDomain}`
+      : `https://shop.my-store.ai/${storeData.slug}`;
+
+    return {
+      ...storeData,
+      storeName: storeData.name || storeData.storeName,
+      storeUrl,
+    };
   } catch (error: any) {
     // Silently throw error - will be caught by getStoreUrl
     throw error;
@@ -41,7 +66,7 @@ export const getStore = async (): Promise<Store> => {
 export const getStoreUrl = async (): Promise<string> => {
   try {
     const store = await getStore();
-    return store.storeUrl || `https://my-store.ai/${store.slug}`;
+    return store.storeUrl || `https://shop.my-store.ai/${store.slug}`;
   } catch (error: any) {
     // Silently return empty string - store link will be hidden
     return '';
