@@ -1,50 +1,59 @@
 import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TextInput,
-  TouchableOpacity,
-  Alert,
-  ActivityIndicator,
-  Switch,
-} from 'react-native';
+import { ScrollView, Alert, Switch } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/store/themeStore';
 import { useRouter } from 'expo-router';
-import { PageHeader } from '@/components/ui/PageHeader';
-import { SectionHeader } from '@/components/ui/SectionHeader';
-import { spacing } from '@/theme/spacing';
-import { design } from '@/theme/design';
+import { haptics } from '@/utils/haptics';
+import { useDynamicForm } from '@/hooks/useDynamicForm';
+import { DynamicLanguageFields } from '@/components/forms/DynamicLanguageFields';
+import {
+  Box,
+  HStack,
+  VStack,
+  Heading,
+  Text,
+  Pressable,
+  Spinner,
+  Input,
+  InputField,
+  Button,
+  ButtonText,
+  Textarea,
+  TextareaInput,
+} from '@gluestack-ui/themed';
+import {
+  ArrowLeft,
+  Save,
+} from 'lucide-react-native';
 import { createPaymentMethod } from '@/services/payment-methods.service';
 
 export default function AddPaymentMethodScreen() {
-  const { t } = useTranslation(['settings', 'common']);
-  const { colors } = useTheme();
+  const { t, i18n } = useTranslation('settings');
+  const { colors, isDark } = useTheme();
   const router = useRouter();
+  const isRTL = i18n.language === 'ar';
 
   const [loading, setLoading] = useState(false);
 
-  // Form state
-  const [name, setName] = useState('');
-  const [nameAr, setNameAr] = useState('');
-  const [description, setDescription] = useState('');
-  const [descriptionAr, setDescriptionAr] = useState('');
-  const [instructions, setInstructions] = useState('');
-  const [instructionsAr, setInstructionsAr] = useState('');
+  // Use dynamic form hook for language fields
+  const { formData, setFormData, buildPayload, validateRequiredFields } = useDynamicForm([
+    'name',
+    'description',
+    'instructions',
+  ]);
+
   const [processingFee, setProcessingFee] = useState('');
   const [isActive, setIsActive] = useState(true);
 
   // Validate form
   const validateForm = (): boolean => {
-    if (!name.trim()) {
-      Alert.alert(t('common:error'), t('settings:name_required'));
+    if (!validateRequiredFields()) {
+      Alert.alert(t('error'), t('name_required'));
       return false;
     }
 
     if (processingFee && (isNaN(Number(processingFee)) || Number(processingFee) < 0)) {
-      Alert.alert(t('common:error'), t('settings:fee_invalid'));
+      Alert.alert(t('error'), t('fee_invalid'));
       return false;
     }
 
@@ -56,348 +65,190 @@ export default function AddPaymentMethodScreen() {
     if (!validateForm()) return;
 
     try {
+      haptics.light();
       setLoading(true);
 
       const data = {
         type: 'custom',
-        name: name.trim(),
-        nameAr: nameAr.trim() || undefined,
-        description: description.trim() || undefined,
-        descriptionAr: descriptionAr.trim() || undefined,
+        ...buildPayload(),
         isActive,
         feeAmount: processingFee ? Number(processingFee) : undefined,
-        accountInfo: instructions.trim()
-          ? {
-              instructions: instructions.trim(),
-              instructionsAr: instructionsAr.trim() || undefined,
-            }
-          : undefined,
       };
 
       await createPaymentMethod(data);
 
+      haptics.success();
       Alert.alert(
-        t('common:success'),
-        t('settings:payment_method_created'),
+        t('success'),
+        t('payment_method_created'),
         [
           {
-            text: t('common:ok'),
+            text: t('ok'),
             onPress: () => router.back(),
           },
         ]
       );
     } catch (error: any) {
-      Alert.alert(t('common:error'), error.message);
+      haptics.error();
+      Alert.alert(t('error'), error.message);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <PageHeader title={t('settings:add_payment_method')} showBack />
-
+    <Box flex={1} bg="$backgroundLight" $dark-bg="$backgroundDark">
       <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingTop: 60, paddingBottom: 100 }}
       >
-        {/* Basic Information */}
-        <View style={styles.section}>
-          <SectionHeader title={t('settings:basic_info')} icon="📝" />
+        <Box px="$4">
+          <VStack space="lg">
+            <VStack
+                space="md"
+                bg="$surfaceLight"
+                $dark-bg="$surfaceDark"
+                borderRadius="$2xl"
+                p="$4"
+              >
+                {/* Dynamic Name Fields */}
+                <DynamicLanguageFields
+                  fieldName="name"
+                  formData={formData}
+                  setFormData={setFormData}
+                  placeholder={t('payment_method_name_placeholder')}
+                />
 
-          <View style={[styles.card, { backgroundColor: colors.surface, ...design.shadow.sm }]}>
-            {/* English Name */}
-            <View style={styles.fieldContainer}>
-              <Text style={[styles.label, { color: colors.text }]}>
-                {t('settings:name')} ({t('common:en')}) *
-              </Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: colors.background,
-                    color: colors.text,
-                    borderColor: colors.border,
-                  },
-                ]}
-                value={name}
-                onChangeText={setName}
-                placeholder={t('settings:payment_method_name_placeholder')}
-                placeholderTextColor={colors.textSecondary}
-              />
-            </View>
+                {/* Dynamic Description Fields */}
+                <DynamicLanguageFields
+                  fieldName="description"
+                  formData={formData}
+                  setFormData={setFormData}
+                  placeholder={t('payment_method_description_placeholder')}
+                  multiline
+                  minHeight={80}
+                />
+              </VStack>
 
-            {/* Arabic Name */}
-            <View style={styles.fieldContainer}>
-              <Text style={[styles.label, { color: colors.text }]}>
-                {t('settings:name')} ({t('common:ar')})
-              </Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: colors.background,
-                    color: colors.text,
-                    borderColor: colors.border,
-                    textAlign: 'right',
-                  },
-                ]}
-                value={nameAr}
-                onChangeText={setNameAr}
-                placeholder={t('settings:payment_method_name_ar_placeholder')}
-                placeholderTextColor={colors.textSecondary}
-              />
-            </View>
+            <VStack
+                space="md"
+                bg="$surfaceLight"
+                $dark-bg="$surfaceDark"
+                borderRadius="$2xl"
+                p="$4"
+              >
+                {/* Dynamic Instructions Fields */}
+                <DynamicLanguageFields
+                  fieldName="instructions"
+                  formData={formData}
+                  setFormData={setFormData}
+                  placeholder={t('payment_instructions_placeholder')}
+                  multiline
+                  minHeight={100}
+                />
+              </VStack>
 
-            {/* English Description */}
-            <View style={styles.fieldContainer}>
-              <Text style={[styles.label, { color: colors.text }]}>
-                {t('settings:description')} ({t('common:en')})
-              </Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  styles.textArea,
-                  {
-                    backgroundColor: colors.background,
-                    color: colors.text,
-                    borderColor: colors.border,
-                  },
-                ]}
-                value={description}
-                onChangeText={setDescription}
-                placeholder={t('settings:payment_method_description_placeholder')}
-                placeholderTextColor={colors.textSecondary}
-                multiline
-                numberOfLines={3}
-              />
-            </View>
+            <VStack
+                space="md"
+                bg="$surfaceLight"
+                $dark-bg="$surfaceDark"
+                borderRadius="$2xl"
+                p="$4"
+              >
+                {/* Processing Fee */}
+                <VStack space="xs">
+                  <Text
+                    fontSize="$sm"
+                    fontWeight="$medium"
+                    color="$textLight"
+                    $dark-color="$textDark"
+                    textAlign={isRTL ? 'right' : 'left'}
+                  >
+                    {t('processing_fee')} (%)
+                  </Text>
+                  <Input
+                    borderRadius="$xl"
+                    borderColor="$borderLight"
+                    $dark-borderColor="$borderDark"
+                    bg="$backgroundLight"
+                    $dark-bg="$backgroundDark"
+                  >
+                    <InputField
+                      value={processingFee}
+                      onChangeText={setProcessingFee}
+                      placeholder="0.00"
+                      keyboardType="decimal-pad"
+                      color="$textLight"
+                      $dark-color="$textDark"
+                      textAlign={isRTL ? 'right' : 'left'}
+                    />
+                  </Input>
+                </VStack>
 
-            {/* Arabic Description */}
-            <View style={styles.fieldContainer}>
-              <Text style={[styles.label, { color: colors.text }]}>
-                {t('settings:description')} ({t('common:ar')})
-              </Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  styles.textArea,
-                  {
-                    backgroundColor: colors.background,
-                    color: colors.text,
-                    borderColor: colors.border,
-                    textAlign: 'right',
-                  },
-                ]}
-                value={descriptionAr}
-                onChangeText={setDescriptionAr}
-                placeholder={t('settings:payment_method_description_ar_placeholder')}
-                placeholderTextColor={colors.textSecondary}
-                multiline
-                numberOfLines={3}
-              />
-            </View>
-          </View>
-        </View>
+                {/* Active Switch */}
+                <HStack
+                  alignItems="center"
+                  justifyContent="space-between"
+                  flexDirection={isRTL ? 'row-reverse' : 'row'}
+                >
+                  <VStack flex={1}>
+                    <Text
+                      fontSize="$md"
+                      fontWeight="$semibold"
+                      color="$textLight"
+                      $dark-color="$textDark"
+                      textAlign={isRTL ? 'right' : 'left'}
+                    >
+                      {t('active')}
+                    </Text>
+                    <Text
+                      fontSize="$sm"
+                      color="$textSecondaryLight"
+                      $dark-color="$textSecondaryDark"
+                      textAlign={isRTL ? 'right' : 'left'}
+                    >
+                      {t('active_payment_description')}
+                    </Text>
+                  </VStack>
+                  <Switch
+                    value={isActive}
+                    onValueChange={(value) => {
+                      haptics.light();
+                      setIsActive(value);
+                    }}
+                    trackColor={{
+                      false: isDark ? 'rgba(255, 255, 255, 0.1)' : '#E5E5EA',
+                      true: colors.primary,
+                    }}
+                    thumbColor="#FFFFFF"
+                    ios_backgroundColor={isDark ? 'rgba(255, 255, 255, 0.1)' : '#E5E5EA'}
+                  />
+                </HStack>
+              </VStack>
 
-        {/* Payment Instructions */}
-        <View style={styles.section}>
-          <SectionHeader title={t('settings:payment_instructions')} icon="📋" />
-
-          <View style={[styles.card, { backgroundColor: colors.surface, ...design.shadow.sm }]}>
-            {/* English Instructions */}
-            <View style={styles.fieldContainer}>
-              <Text style={[styles.label, { color: colors.text }]}>
-                {t('settings:instructions')} ({t('common:en')})
-              </Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  styles.textArea,
-                  {
-                    backgroundColor: colors.background,
-                    color: colors.text,
-                    borderColor: colors.border,
-                  },
-                ]}
-                value={instructions}
-                onChangeText={setInstructions}
-                placeholder={t('settings:payment_instructions_placeholder')}
-                placeholderTextColor={colors.textSecondary}
-                multiline
-                numberOfLines={4}
-              />
-            </View>
-
-            {/* Arabic Instructions */}
-            <View style={styles.fieldContainer}>
-              <Text style={[styles.label, { color: colors.text }]}>
-                {t('settings:instructions')} ({t('common:ar')})
-              </Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  styles.textArea,
-                  {
-                    backgroundColor: colors.background,
-                    color: colors.text,
-                    borderColor: colors.border,
-                    textAlign: 'right',
-                  },
-                ]}
-                value={instructionsAr}
-                onChangeText={setInstructionsAr}
-                placeholder={t('settings:payment_instructions_ar_placeholder')}
-                placeholderTextColor={colors.textSecondary}
-                multiline
-                numberOfLines={4}
-              />
-            </View>
-          </View>
-        </View>
-
-        {/* Fees & Settings */}
-        <View style={styles.section}>
-          <SectionHeader title={t('settings:fees_and_settings')} icon="⚙️" />
-
-          <View style={[styles.card, { backgroundColor: colors.surface, ...design.shadow.sm }]}>
-            {/* Processing Fee */}
-            <View style={styles.fieldContainer}>
-              <Text style={[styles.label, { color: colors.text }]}>
-                {t('settings:processing_fee')} (%)
-              </Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: colors.background,
-                    color: colors.text,
-                    borderColor: colors.border,
-                  },
-                ]}
-                value={processingFee}
-                onChangeText={setProcessingFee}
-                placeholder="0.00"
-                placeholderTextColor={colors.textSecondary}
-                keyboardType="decimal-pad"
-              />
-            </View>
-
-            {/* Active Switch */}
-            <View style={styles.switchContainer}>
-              <View style={styles.switchInfo}>
-                <Text style={[styles.switchLabel, { color: colors.text }]}>
-                  {t('settings:active')}
-                </Text>
-                <Text style={[styles.switchDescription, { color: colors.textSecondary }]}>
-                  {t('settings:active_payment_description')}
-                </Text>
-              </View>
-              <Switch
-                value={isActive}
-                onValueChange={setIsActive}
-                trackColor={{ false: colors.border, true: colors.primary + '60' }}
-                thumbColor={isActive ? colors.primary : colors.textSecondary}
-              />
-            </View>
-          </View>
-        </View>
-
-        {/* Save Button */}
-        <TouchableOpacity
-          style={[
-            styles.saveButton,
-            { backgroundColor: colors.primary, ...design.shadow.md },
-            loading && styles.saveButtonDisabled,
-          ]}
-          onPress={handleSave}
-          disabled={loading}
-          activeOpacity={0.8}
-        >
-          {loading ? (
-            <ActivityIndicator size="small" color="#FFFFFF" />
-          ) : (
-            <Text style={styles.saveButtonText}>{t('common:save')}</Text>
-          )}
-        </TouchableOpacity>
+            {/* Save Button */}
+            <Button
+              size="lg"
+              bg="$primary500"
+              borderRadius="$2xl"
+              onPress={handleSave}
+              isDisabled={loading}
+              mt="$4"
+            >
+              {loading ? (
+                <Spinner color="#FFFFFF" />
+              ) : (
+                <HStack space="sm" alignItems="center">
+                  <Save size={20} color="#FFFFFF" strokeWidth={2.5} />
+                  <ButtonText fontSize="$md" fontWeight="$bold" color="$white">
+                    {t('save_changes')}
+                  </ButtonText>
+                </HStack>
+              )}
+            </Button>
+          </VStack>
+        </Box>
       </ScrollView>
-    </View>
+    </Box>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: spacing.m,
-    paddingBottom: spacing.xl * 2,
-  },
-
-  // Section
-  section: {
-    marginBottom: spacing.l,
-  },
-  card: {
-    borderRadius: design.radius.md,
-    padding: spacing.m,
-  },
-
-  // Form Fields
-  fieldContainer: {
-    marginBottom: spacing.m,
-  },
-  label: {
-    ...design.typography.bodyBold,
-    marginBottom: spacing.s,
-  },
-  input: {
-    ...design.typography.body,
-    borderWidth: 1,
-    borderRadius: design.radius.sm,
-    padding: spacing.m,
-  },
-  textArea: {
-    minHeight: 80,
-    textAlignVertical: 'top',
-  },
-
-  // Switch
-  switchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: spacing.s,
-  },
-  switchInfo: {
-    flex: 1,
-    marginRight: spacing.m,
-  },
-  switchLabel: {
-    ...design.typography.bodyBold,
-    marginBottom: 4,
-  },
-  switchDescription: {
-    ...design.typography.caption,
-  },
-
-  // Save Button
-  saveButton: {
-    padding: spacing.l,
-    borderRadius: design.radius.md,
-    alignItems: 'center',
-    marginTop: spacing.l,
-  },
-  saveButtonDisabled: {
-    opacity: 0.6,
-  },
-  saveButtonText: {
-    ...design.typography.bodyBold,
-    color: '#FFFFFF',
-  },
-});

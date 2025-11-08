@@ -1,25 +1,46 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { ScrollView, Alert, Dimensions, RefreshControl } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/store/themeStore';
 import { useAuth } from '@/store/authStore';
 import { router } from 'expo-router';
-import { AppHeader } from '@/components/ui/AppHeader';
-import { SectionHeader } from '@/components/ui/SectionHeader';
-import { Divider } from '@/components/ui/Divider';
-import { spacing } from '@/theme/spacing';
-import { design } from '@/theme/design';
 import { changeLanguage } from '@/locales/i18n';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Updates from 'expo-updates';
+import { haptics } from '@/utils/haptics';
+import { getStore, Store as StoreData } from '@/services/store.service';
+import {
+  Box,
+  HStack,
+  VStack,
+  Text,
+  Heading,
+  Pressable,
+  Spinner,
+} from '@gluestack-ui/themed';
+import {
+  Store,
+  ShoppingCart,
+  Puzzle,
+  Globe,
+  Palette,
+  HelpCircle,
+  ChevronRight,
+  LogOut,
+} from 'lucide-react-native';
+
+const { width } = Dimensions.get('window');
 
 interface SettingItem {
   id: string;
-  icon: string;
+  icon: any;
   label: string;
   route?: string;
   onPress?: () => void;
   badge?: string;
+  iconColor?: string;
+  iconBg?: string;
+  iconBgDark?: string;
 }
 
 interface SettingSection {
@@ -28,12 +49,52 @@ interface SettingSection {
 }
 
 export default function SettingsScreen() {
-  const { t } = useTranslation('settings');
+  const { t, i18n } = useTranslation('settings');
   const { t: tCommon } = useTranslation('common');
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const { user, logout } = useAuth();
 
+  // Check RTL dynamically based on current language
+  const isRTL = i18n.language === 'ar';
+
+  // State for store data
+  const [store, setStore] = useState<StoreData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Load store data
+  const loadStoreData = async (isRefresh = false) => {
+    try {
+      if (isRefresh) {
+        haptics.light();
+        setIsRefreshing(true);
+      } else {
+        setIsLoading(true);
+      }
+
+      const storeData = await getStore();
+      setStore(storeData);
+
+      if (isRefresh) {
+        haptics.success();
+      }
+    } catch (error) {
+      console.error('Error loading store data:', error);
+      if (isRefresh) {
+        haptics.error();
+      }
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    loadStoreData();
+  }, []);
+
   const handleLogout = () => {
+    haptics.light();
     Alert.alert(
       t('logout'),
       t('logout_confirm'),
@@ -43,6 +104,7 @@ export default function SettingsScreen() {
           text: t('logout'),
           style: 'destructive',
           onPress: async () => {
+            haptics.success();
             await logout();
             router.replace('/auth/login');
           },
@@ -52,6 +114,7 @@ export default function SettingsScreen() {
   };
 
   const handleLanguageChange = async () => {
+    haptics.light();
     Alert.alert(
       tCommon('select_language'),
       tCommon('choose_app_language'),
@@ -125,27 +188,30 @@ export default function SettingsScreen() {
       items: [
         {
           id: 'store-settings',
-          icon: '🏪',
+          icon: Store,
           label: t('store_settings'),
-          route: '/settings/store-profile',
-        },
-        {
-          id: 'regional-settings',
-          icon: '🌍',
-          label: t('regional_settings'),
-          route: '/settings/regional',
+          route: '/settings/store-settings',
+          iconColor: '$blue500',
+          iconBg: '$blue50',
+          iconBgDark: 'rgba(59, 130, 246, 0.15)',
         },
         {
           id: 'order-settings',
-          icon: '📋',
+          icon: ShoppingCart,
           label: t('order_settings'),
           route: '/settings/order-settings',
+          iconColor: '$purple500',
+          iconBg: '$purple50',
+          iconBgDark: 'rgba(139, 92, 246, 0.15)',
         },
         {
           id: 'apps',
-          icon: '🧩',
+          icon: Puzzle,
           label: t('apps'),
           route: '/settings/apps',
+          iconColor: '$amber500',
+          iconBg: '$amber50',
+          iconBgDark: 'rgba(245, 158, 11, 0.15)',
         },
       ],
     },
@@ -153,21 +219,21 @@ export default function SettingsScreen() {
       title: t('preferences'),
       items: [
         {
-          id: 'account',
-          icon: '👤',
-          label: t('account_settings'),
-          route: '/settings/account',
-        },
-        {
           id: 'language',
-          icon: '🌐',
+          icon: Globe,
           label: t('language'),
           onPress: handleLanguageChange,
+          iconColor: '$green500',
+          iconBg: '$green50',
+          iconBgDark: 'rgba(34, 197, 94, 0.15)',
         },
         {
           id: 'theme',
-          icon: '🎨',
+          icon: Palette,
           label: t('theme'),
+          iconColor: '$pink500',
+          iconBg: '$pink50',
+          iconBgDark: 'rgba(236, 72, 153, 0.15)',
         },
       ],
     },
@@ -176,20 +242,19 @@ export default function SettingsScreen() {
       items: [
         {
           id: 'help',
-          icon: '❓',
+          icon: HelpCircle,
           label: t('help_support'),
           route: '/settings/help-support',
-        },
-        {
-          id: 'about',
-          icon: 'ℹ️',
-          label: t('about'),
+          iconColor: '$cyan500',
+          iconBg: '$cyan50',
+          iconBgDark: 'rgba(6, 182, 212, 0.15)',
         },
       ],
     },
   ];
 
   const handleItemPress = (item: SettingItem) => {
+    haptics.light();
     if (item.onPress) {
       item.onPress();
     } else if (item.route) {
@@ -197,246 +262,306 @@ export default function SettingsScreen() {
     }
   };
 
+  // Function to get store name based on current language
+  const getStoreName = () => {
+    if (!store) return user?.firstName || t('settings');
+
+    const lang = i18n.language;
+    const langKey = `name${lang.charAt(0).toUpperCase() + lang.slice(1)}` as keyof StoreData;
+    const localizedName = store[langKey] as string | undefined;
+
+    return localizedName || store.storeName || store.name || user?.firstName || t('settings');
+  };
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <Box flex={1} bg="$backgroundLight" $dark-bg="$backgroundDark" alignItems="center" justifyContent="center">
+        <Spinner size="large" color="$primary500" />
+      </Box>
+    );
+  }
+
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <Box flex={1} bg="$backgroundLight" $dark-bg="$backgroundDark">
       {/* Header */}
-      <AppHeader
-        title={t('settings')}
-        showNotifications={true}
-        showStoreLink={false}
-      />
+      <Box
+        px="$4"
+        pt="$12"
+        pb="$4"
+        bg="$backgroundLight"
+        $dark-bg="$backgroundDark"
+      >
+        <Heading
+          size="xl"
+          color="$textLight"
+          $dark-color="$textDark"
+          textAlign={isRTL ? 'right' : 'left'}
+        >
+          {getStoreName()}
+        </Heading>
+        {store && (
+          <Text
+            fontSize="$sm"
+            color="$textSecondaryLight"
+            $dark-color="$textSecondaryDark"
+            mt="$1"
+            textAlign={isRTL ? 'right' : 'left'}
+          >
+            {user?.email || ''}
+          </Text>
+        )}
+      </Box>
 
       <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 100 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={() => loadStoreData(true)}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        }
       >
-        {/* User Profile Card */}
-        <View style={[
-          styles.profileCard,
-          {
-            backgroundColor: colors.surface,
-            ...design.shadow.md,
-          }
-        ]}>
-          <View style={[styles.avatar, { backgroundColor: colors.primary }]}>
-            <Text style={styles.avatarText}>
-              {(user as any)?.firstName?.charAt(0) || user?.email?.charAt(0)?.toUpperCase() || 'M'}
-            </Text>
-          </View>
-          <View style={styles.profileInfo}>
-            <Text style={[styles.profileName, { color: colors.text }]}>
-              {(user as any)?.firstName || user?.email?.split('@')[0] || 'Merchant'}
-            </Text>
-            <Text style={[styles.profileEmail, { color: colors.textSecondary }]}>
-              {user?.email || 'merchant@example.com'}
-            </Text>
-          </View>
-          <TouchableOpacity style={styles.editButton}>
-            <Text style={{ fontSize: 18 }}>✏️</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Settings Sections */}
-        {sections.map((section, sectionIndex) => (
-          <View key={section.title} style={styles.section}>
-            <SectionHeader title={section.title} />
-
-            <View style={[
-              styles.sectionCard,
-              {
-                backgroundColor: colors.surface,
-                borderColor: colors.border,
-                ...design.shadow.sm,
-              }
-            ]}>
-              {section.items.map((item, itemIndex) => (
-                <React.Fragment key={item.id}>
-                  <TouchableOpacity
-                    style={styles.settingItem}
-                    onPress={() => handleItemPress(item)}
-                    activeOpacity={0.7}
+        <Box px="$4">
+          {/* Store Info Card */}
+          {store && (
+            <Box
+              mb="$6"
+              p="$4"
+              bg="$surfaceLight"
+              $dark-bg="$surfaceDark"
+              borderRadius="$2xl"
+            >
+              <VStack space="sm">
+                <HStack
+                  alignItems="center"
+                  justifyContent="space-between"
+                  flexDirection={isRTL ? 'row-reverse' : 'row'}
+                >
+                  <Text
+                    fontSize="$sm"
+                    fontWeight="$medium"
+                    color="$textSecondaryLight"
+                    $dark-color="$textSecondaryDark"
                   >
-                    <View style={[
-                      styles.settingIcon,
-                      { backgroundColor: colors.primary + '10' }
-                    ]}>
-                      <Text style={styles.iconText}>{item.icon}</Text>
-                    </View>
-                    <Text style={[styles.settingLabel, { color: colors.text }]}>
-                      {item.label}
+                    {t('store_url')}
+                  </Text>
+                  <Text
+                    fontSize="$sm"
+                    color="$primary500"
+                    numberOfLines={1}
+                    flex={1}
+                    textAlign={isRTL ? 'left' : 'right'}
+                    ml={isRTL ? 0 : '$2'}
+                    mr={isRTL ? '$2' : 0}
+                  >
+                    {store.storeUrl?.replace('https://', '') || `shop.my-store.ai/${store.slug}`}
+                  </Text>
+                </HStack>
+                <HStack
+                  alignItems="center"
+                  justifyContent="space-between"
+                  flexDirection={isRTL ? 'row-reverse' : 'row'}
+                >
+                  <Text
+                    fontSize="$sm"
+                    fontWeight="$medium"
+                    color="$textSecondaryLight"
+                    $dark-color="$textSecondaryDark"
+                  >
+                    {t('store_status')}
+                  </Text>
+                  <Box
+                    px="$3"
+                    py="$1"
+                    borderRadius="$full"
+                    bg={store.isPublished ? '$success100' : '$amber100'}
+                    $dark-bg={store.isPublished ? 'rgba(34, 197, 94, 0.2)' : 'rgba(245, 158, 11, 0.2)'}
+                  >
+                    <Text
+                      fontSize="$xs"
+                      fontWeight="$semibold"
+                      color={store.isPublished ? '$success700' : '$amber700'}
+                      $dark-color={store.isPublished ? '$success400' : '$amber400'}
+                    >
+                      {store.isPublished ? t('published') : t('draft')}
                     </Text>
-                    {item.badge && (
-                      <View style={[
-                        styles.badge,
-                        { backgroundColor: colors.primary }
-                      ]}>
-                        <Text style={styles.badgeText}>{item.badge}</Text>
-                      </View>
-                    )}
-                    <Text style={[styles.chevron, { color: colors.textSecondary }]}>
-                      ›
-                    </Text>
-                  </TouchableOpacity>
+                  </Box>
+                </HStack>
+              </VStack>
+            </Box>
+          )}
 
-                  {itemIndex < section.items.length - 1 && (
-                    <Divider spacing="none" style={styles.itemDivider} />
-                  )}
-                </React.Fragment>
-              ))}
-            </View>
-          </View>
-        ))}
+          {/* Settings Sections */}
+          {sections.map((section, sectionIndex) => (
+            <Box key={section.title} mb="$6">
+              {/* Section Header */}
+              <Heading
+                size="sm"
+                color="$textSecondaryLight"
+                $dark-color="$textSecondaryDark"
+                mb="$3"
+                textTransform="uppercase"
+                letterSpacing="$sm"
+                textAlign={isRTL ? 'right' : 'left'}
+              >
+                {section.title}
+              </Heading>
 
-        {/* Logout Button */}
-        <TouchableOpacity
-          style={[
-            styles.logoutButton,
-            {
-              backgroundColor: colors.error + '15',
-              borderColor: colors.error + '30',
-            }
-          ]}
-          onPress={handleLogout}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.logoutIcon}>🚪</Text>
-          <Text style={[styles.logoutText, { color: colors.error }]}>
-            {t('logout')}
-          </Text>
-        </TouchableOpacity>
+              {/* Section Items */}
+              <VStack
+                space="sm"
+                bg="$surfaceLight"
+                $dark-bg="$surfaceDark"
+                borderRadius="$2xl"
+                overflow="hidden"
+              >
+                {section.items.map((item, itemIndex) => {
+                  const Icon = item.icon;
+                  return (
+                    <Pressable
+                      key={item.id}
+                      onPress={() => handleItemPress(item)}
+                      bg="$surfaceLight"
+                      $dark-bg="$surfaceDark"
+                      $hover-bg="$backgroundHoverLight"
+                      $dark-hover-bg="$backgroundHoverDark"
+                      $active-opacity={0.8}
+                    >
+                      <HStack
+                        px="$4"
+                        py="$3.5"
+                        alignItems="center"
+                        space="md"
+                        flexDirection={isRTL ? 'row-reverse' : 'row'}
+                      >
+                        {/* Icon */}
+                        <Box
+                          w={44}
+                          h={44}
+                          borderRadius="$xl"
+                          bg={isDark ? undefined : item.iconBg}
+                          alignItems="center"
+                          justifyContent="center"
+                          style={
+                            isDark
+                              ? {
+                                  backgroundColor: item.iconBgDark,
+                                }
+                              : undefined
+                          }
+                        >
+                          <Icon
+                            size={22}
+                            color={colors[item.iconColor?.replace('$', '') as keyof typeof colors] || colors.primary}
+                            strokeWidth={2}
+                          />
+                        </Box>
 
-        {/* App Version */}
-        <Text style={[styles.versionText, { color: colors.textSecondary }]}>
-          {tCommon('version')} 1.0.0
-        </Text>
+                        {/* Label */}
+                        <Text
+                          flex={1}
+                          fontSize="$md"
+                          fontWeight="$medium"
+                          color="$textLight"
+                          $dark-color="$textDark"
+                          textAlign={isRTL ? 'right' : 'left'}
+                        >
+                          {item.label}
+                        </Text>
+
+                        {/* Badge (if exists) */}
+                        {item.badge && (
+                          <Box
+                            px="$2.5"
+                            py="$1"
+                            borderRadius="$full"
+                            bg="$primary500"
+                          >
+                            <Text
+                              fontSize="$xs"
+                              fontWeight="$bold"
+                              color="$white"
+                            >
+                              {item.badge}
+                            </Text>
+                          </Box>
+                        )}
+
+                        {/* Chevron */}
+                        <ChevronRight
+                          size={20}
+                          color={colors.textSecondary}
+                          style={{
+                            transform: [{ scaleX: isRTL ? -1 : 1 }],
+                          }}
+                        />
+                      </HStack>
+
+                      {/* Divider */}
+                      {itemIndex < section.items.length - 1 && (
+                        <Box
+                          h={1}
+                          bg="$borderLight"
+                          $dark-bg="$borderDark"
+                          opacity={0.3}
+                          mx="$4"
+                        />
+                      )}
+                    </Pressable>
+                  );
+                })}
+              </VStack>
+            </Box>
+          ))}
+
+          {/* Logout Button */}
+          <Pressable
+            onPress={handleLogout}
+            mb="$6"
+            borderRadius="$2xl"
+            overflow="hidden"
+            bg="$error50"
+            $dark-bg="rgba(239, 68, 68, 0.1)"
+            borderWidth={1}
+            borderColor="$error100"
+            $dark-borderColor="rgba(239, 68, 68, 0.2)"
+            $active-opacity={0.8}
+          >
+            <HStack
+              px="$4"
+              py="$4"
+              alignItems="center"
+              justifyContent="center"
+              space="sm"
+              flexDirection={isRTL ? 'row-reverse' : 'row'}
+            >
+              <LogOut size={20} color={colors.error} strokeWidth={2} />
+              <Text
+                fontSize="$md"
+                fontWeight="$semibold"
+                color="$error500"
+              >
+                {t('logout')}
+              </Text>
+            </HStack>
+          </Pressable>
+
+          {/* App Version */}
+          <Box alignItems="center" mb="$4">
+            <Text
+              fontSize="$sm"
+              color="$textSecondaryLight"
+              $dark-color="$textSecondaryDark"
+            >
+              {tCommon('version')} 1.0.0
+            </Text>
+          </Box>
+        </Box>
       </ScrollView>
-    </View>
+    </Box>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: spacing.m,
-    paddingBottom: 90,
-  },
-
-  // Profile Card
-  profileCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: spacing.l,
-    borderRadius: design.radius.lg,
-    marginBottom: spacing.l,
-  },
-  avatar: {
-    width: 56,
-    height: 56,
-    borderRadius: design.radius.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: {
-    ...design.typography.h3,
-    color: '#FFFFFF',
-  },
-  profileInfo: {
-    flex: 1,
-    marginLeft: spacing.m,
-  },
-  profileName: {
-    ...design.typography.h4,
-    marginBottom: 2,
-  },
-  profileEmail: {
-    ...design.typography.caption,
-  },
-  editButton: {
-    width: 36,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  // Section
-  section: {
-    marginBottom: spacing.l,
-  },
-  sectionCard: {
-    borderRadius: design.radius.md,
-    borderWidth: 1,
-    overflow: 'hidden',
-  },
-
-  // Setting Item
-  settingItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: spacing.m,
-    minHeight: 60,
-  },
-  settingIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: design.radius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  iconText: {
-    fontSize: design.iconSize.md,
-  },
-  settingLabel: {
-    ...design.typography.body,
-    flex: 1,
-    marginLeft: spacing.m,
-  },
-  badge: {
-    paddingHorizontal: spacing.s,
-    paddingVertical: 4,
-    borderRadius: design.radius.sm,
-    marginRight: spacing.s,
-  },
-  badgeText: {
-    ...design.typography.small,
-    color: '#FFFFFF',
-    fontWeight: '700',
-  },
-  chevron: {
-    fontSize: 24,
-    fontWeight: '300',
-  },
-  itemDivider: {
-    marginLeft: spacing.m + 40 + spacing.m,
-  },
-
-  // Logout Button
-  logoutButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: spacing.l,
-    borderRadius: design.radius.md,
-    borderWidth: 1,
-    marginTop: spacing.m,
-    marginBottom: spacing.l,
-  },
-  logoutIcon: {
-    fontSize: design.iconSize.md,
-    marginRight: spacing.s,
-  },
-  logoutText: {
-    ...design.typography.bodyBold,
-  },
-
-  // Version
-  versionText: {
-    ...design.typography.caption,
-    textAlign: 'center',
-  },
-});

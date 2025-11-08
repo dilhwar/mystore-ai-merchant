@@ -1,22 +1,29 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Alert,
-  ActivityIndicator,
-  RefreshControl,
-} from 'react-native';
+import { ScrollView, Alert, RefreshControl } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/store/themeStore';
 import { useRouter } from 'expo-router';
-import { PageHeader } from '@/components/ui/PageHeader';
-import { SectionHeader } from '@/components/ui/SectionHeader';
-import { Divider } from '@/components/ui/Divider';
-import { spacing } from '@/theme/spacing';
-import { design } from '@/theme/design';
+import { haptics } from '@/utils/haptics';
+import {
+  Box,
+  HStack,
+  VStack,
+  Heading,
+  Text,
+  Pressable,
+  Spinner,
+  Button,
+  ButtonText,
+} from '@gluestack-ui/themed';
+import {
+  ArrowLeft,
+  CreditCard,
+  Edit2,
+  Trash2,
+  Plus,
+  Banknote,
+  Shield,
+} from 'lucide-react-native';
 import {
   getPaymentMethods,
   deletePaymentMethod,
@@ -24,24 +31,38 @@ import {
 } from '@/services/payment-methods.service';
 
 export default function PaymentMethodsScreen() {
-  const { t, i18n } = useTranslation(['settings', 'common']);
-  const { colors } = useTheme();
+  const { t, i18n } = useTranslation('settings');
+  const { colors, isDark } = useTheme();
   const router = useRouter();
+  const isRTL = i18n.language === 'ar';
 
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
 
   const currentLanguage = i18n.language;
 
   // Load payment methods
-  const loadPaymentMethods = useCallback(async () => {
+  const loadPaymentMethods = useCallback(async (isRefresh = false) => {
     try {
-      setLoading(true);
+      if (isRefresh) {
+        haptics.light();
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+
       const methods = await getPaymentMethods();
       setPaymentMethods(methods);
+
+      if (isRefresh) {
+        haptics.success();
+      }
     } catch (error: any) {
-      Alert.alert(t('common:error'), error.message || t('settings:load_error'));
+      if (isRefresh) {
+        haptics.error();
+      }
+      Alert.alert(t('error'), error.message || t('load_error'));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -52,28 +73,34 @@ export default function PaymentMethodsScreen() {
     loadPaymentMethods();
   }, [loadPaymentMethods]);
 
-  const onRefresh = useCallback(() => {
-    setRefreshing(true);
-    loadPaymentMethods();
-  }, [loadPaymentMethods]);
-
   // Delete payment method
-  const handleDelete = (methodId: string, methodName: string) => {
+  const handleDelete = (methodId: string, methodName: string, isBuiltIn: boolean) => {
+    if (isBuiltIn) {
+      Alert.alert(t('error'), t('built_in_method_notice'));
+      return;
+    }
+
+    haptics.light();
     Alert.alert(
-      t('settings:delete_payment_method'),
-      t('settings:delete_payment_method_confirm', { name: methodName }),
+      t('delete_payment_method'),
+      t('delete_payment_method_confirm', { name: methodName }),
       [
-        { text: t('common:cancel'), style: 'cancel' },
         {
-          text: t('common:delete'),
+          text: t('cancel'),
+          style: 'cancel',
+        },
+        {
+          text: t('delete_payment_method'),
           style: 'destructive',
           onPress: async () => {
             try {
+              haptics.success();
               await deletePaymentMethod(methodId);
-              Alert.alert(t('common:success'), t('settings:payment_method_deleted'));
+              Alert.alert(t('success'), t('payment_method_deleted'));
               loadPaymentMethods();
             } catch (error: any) {
-              Alert.alert(t('common:error'), error.message);
+              haptics.error();
+              Alert.alert(t('error'), error.message);
             }
           },
         },
@@ -95,8 +122,8 @@ export default function PaymentMethodsScreen() {
   // Group methods by type
   const groupedMethods = paymentMethods.reduce((acc, method) => {
     const groupName = method.isBuiltIn
-      ? t('settings:built_in_methods')
-      : t('settings:custom_methods');
+      ? t('built_in_methods')
+      : t('custom_methods');
     if (!acc[groupName]) {
       acc[groupName] = [];
     }
@@ -104,325 +131,276 @@ export default function PaymentMethodsScreen() {
     return acc;
   }, {} as Record<string, PaymentMethod[]>);
 
-  if (loading && !refreshing) {
+  if (loading) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <PageHeader title={t('settings:payment_methods')} showBack />
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-        </View>
-      </View>
+      <Box flex={1} bg="$backgroundLight" $dark-bg="$backgroundDark" alignItems="center" justifyContent="center">
+        <Spinner size="large" color="$primary500" />
+        <Text mt="$4" color="$textSecondaryLight" $dark-color="$textSecondaryDark">
+          {t('loading')}
+        </Text>
+      </Box>
     );
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <PageHeader title={t('settings:payment_methods')} showBack />
-
+    <Box flex={1} bg="$backgroundLight" $dark-bg="$backgroundDark">
       <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingTop: 60, paddingBottom: 100 }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={onRefresh}
+            onRefresh={() => loadPaymentMethods(true)}
             tintColor={colors.primary}
             colors={[colors.primary]}
           />
         }
-        showsVerticalScrollIndicator={false}
       >
-        {/* Empty State */}
-        {paymentMethods.length === 0 ? (
-          <View style={styles.emptyState}>
-            <View style={[styles.emptyIcon, { backgroundColor: colors.primary + '10' }]}>
-              <Text style={styles.emptyIconText}>💳</Text>
-            </View>
-            <Text style={[styles.emptyTitle, { color: colors.text }]}>
-              {t('settings:no_payment_methods')}
-            </Text>
-            <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
-              {t('settings:add_payment_methods_hint')}
-            </Text>
-          </View>
-        ) : (
-          /* Grouped Payment Methods */
-          <>
-            {Object.entries(groupedMethods).map(([groupName, methods]) => (
-              <View key={groupName} style={styles.groupSection}>
-                {/* Group Header */}
-                <SectionHeader
-                  title={groupName}
-                  icon={groupName === t('settings:built_in_methods') ? '🏛️' : '⚡'}
-                  subtitle={`${methods.length} ${methods.length === 1 ? t('common:method') : t('common:methods')}`}
-                />
+        <Box px="$4">
+          {/* Empty State */}
+          {paymentMethods.length === 0 ? (
+            <Box alignItems="center" py="$20">
+              <Box
+                w={80}
+                h={80}
+                borderRadius="$full"
+                bg="$green50"
+                $dark-bg="rgba(34, 197, 94, 0.15)"
+                alignItems="center"
+                justifyContent="center"
+                mb="$6"
+              >
+                <CreditCard size={40} color={colors.green500} strokeWidth={2} />
+              </Box>
+              <Heading
+                size="lg"
+                color="$textLight"
+                $dark-color="$textDark"
+                mb="$2"
+                textAlign="center"
+              >
+                {t('no_payment_methods')}
+              </Heading>
+              <Text
+                fontSize="$sm"
+                color="$textSecondaryLight"
+                $dark-color="$textSecondaryDark"
+                textAlign="center"
+                px="$8"
+                mb="$6"
+              >
+                {t('add_payment_methods_hint')}
+              </Text>
+              <Button
+                size="lg"
+                bg="$primary500"
+                borderRadius="$2xl"
+                onPress={() => {
+                  haptics.light();
+                  router.push('/settings/order-settings/payment-methods/add');
+                }}
+              >
+                <HStack space="sm" alignItems="center">
+                  <Plus size={20} color="#FFFFFF" strokeWidth={2.5} />
+                  <ButtonText fontSize="$md" fontWeight="$bold" color="$white">
+                    {t('add_payment_method')}
+                  </ButtonText>
+                </HStack>
+              </Button>
+            </Box>
+          ) : (
+            /* Payment Methods List */
+            <VStack space="lg">
+              {Object.entries(groupedMethods).map(([groupName, methods]) => (
+                <Box key={groupName}>
+                  {/* Group Header */}
+                  <HStack
+                    alignItems="center"
+                    space="sm"
+                    mb="$3"
+                    flexDirection={isRTL ? 'row-reverse' : 'row'}
+                  >
+                    {groupName === t('built_in_methods') ? (
+                      <Shield size={16} color={colors.textSecondary} strokeWidth={2.5} />
+                    ) : (
+                      <Banknote size={16} color={colors.textSecondary} strokeWidth={2.5} />
+                    )}
+                    <Text
+                      fontSize="$sm"
+                      fontWeight="$semibold"
+                      color="$textSecondaryLight"
+                      $dark-color="$textSecondaryDark"
+                      textTransform="uppercase"
+                      letterSpacing="$sm"
+                    >
+                      {groupName}
+                    </Text>
+                    <Text
+                      fontSize="$xs"
+                      color="$textSecondaryLight"
+                      $dark-color="$textSecondaryDark"
+                    >
+                      ({methods.length})
+                    </Text>
+                  </HStack>
 
-                {/* Group Card */}
-                <View
-                  style={[
-                    styles.groupCard,
-                    {
-                      backgroundColor: colors.surface,
-                      borderColor: colors.border,
-                      ...design.shadow.sm,
-                    },
-                  ]}
-                >
-                  {methods.map((method, methodIndex) => {
-                    const methodName = getMethodName(method);
-
-                    return (
-                      <React.Fragment key={method.id}>
-                        <View style={styles.methodItem}>
-                          {/* Method Icon & Info */}
-                          <View style={styles.methodMain}>
-                            <View
-                              style={[
-                                styles.methodIcon,
-                                { backgroundColor: colors.primary + '10' },
-                              ]}
+                  {/* Methods */}
+                  <VStack space="sm">
+                    {methods.map((method) => {
+                      const methodName = getMethodName(method);
+                      return (
+                        <Box
+                          key={method.id}
+                          bg="$surfaceLight"
+                          $dark-bg="$surfaceDark"
+                          borderRadius="$2xl"
+                          overflow="hidden"
+                        >
+                          <HStack
+                            px="$4"
+                            py="$4"
+                            alignItems="center"
+                            space="md"
+                            flexDirection={isRTL ? 'row-reverse' : 'row'}
+                          >
+                            {/* Icon */}
+                            <Box
+                              w={48}
+                              h={48}
+                              borderRadius="$xl"
+                              bg={method.isActive ? '$green50' : '$gray100'}
+                              $dark-bg={method.isActive ? 'rgba(34, 197, 94, 0.15)' : 'rgba(255, 255, 255, 0.05)'}
+                              alignItems="center"
+                              justifyContent="center"
                             >
-                              <Text style={styles.methodIconText}>
-                                {method.isActive ? '✓' : '○'}
-                              </Text>
-                            </View>
+                              <CreditCard
+                                size={24}
+                                color={method.isActive ? colors.green500 : colors.textSecondary}
+                                strokeWidth={2}
+                              />
+                            </Box>
 
-                            <View style={styles.methodInfo}>
-                              <View style={styles.methodHeader}>
-                                <Text style={[styles.methodName, { color: colors.text }]}>
+                            {/* Info */}
+                            <VStack flex={1} space="xs">
+                              <HStack alignItems="center" space="sm" flexDirection={isRTL ? 'row-reverse' : 'row'}>
+                                <Text
+                                  fontSize="$md"
+                                  fontWeight="$semibold"
+                                  color="$textLight"
+                                  $dark-color="$textDark"
+                                >
                                   {methodName}
                                 </Text>
-                                {!method.isActive && (
-                                  <View
-                                    style={[
-                                      styles.inactiveBadge,
-                                      { backgroundColor: colors.textSecondary + '15' },
-                                    ]}
+                                {method.isBuiltIn && (
+                                  <Box
+                                    px="$2"
+                                    py="$0.5"
+                                    borderRadius="$full"
+                                    bg="$blue100"
+                                    $dark-bg="rgba(59, 130, 246, 0.2)"
                                   >
                                     <Text
-                                      style={[
-                                        styles.inactiveBadgeText,
-                                        { color: colors.textSecondary },
-                                      ]}
+                                      fontSize="$xs"
+                                      fontWeight="$semibold"
+                                      color="$blue700"
+                                      $dark-color="$blue400"
                                     >
-                                      {t('common:inactive')}
+                                      {t('built_in')}
                                     </Text>
-                                  </View>
+                                  </Box>
                                 )}
-                              </View>
-
-                              {/* Method Details */}
-                              {method.processingFee && method.processingFee > 0 && (
-                                <View style={styles.methodDetails}>
-                                  <Text
-                                    style={[styles.methodDetailLabel, { color: colors.textSecondary }]}
+                                {!method.isActive && (
+                                  <Box
+                                    px="$2"
+                                    py="$0.5"
+                                    borderRadius="$full"
+                                    bg="$gray100"
+                                    $dark-bg="rgba(255, 255, 255, 0.1)"
                                   >
-                                    {t('settings:processing_fee')}:
-                                  </Text>
-                                  <Text style={[styles.methodDetailValue, { color: colors.text }]}>
-                                    {method.processingFee}%
-                                  </Text>
-                                </View>
+                                    <Text
+                                      fontSize="$xs"
+                                      fontWeight="$semibold"
+                                      color="$textSecondaryLight"
+                                      $dark-color="$textSecondaryDark"
+                                    >
+                                      {t('inactive') || 'Inactive'}
+                                    </Text>
+                                  </Box>
+                                )}
+                              </HStack>
+                              {method.processingFee !== undefined && method.processingFee > 0 && (
+                                <Text
+                                  fontSize="$sm"
+                                  color="$textSecondaryLight"
+                                  $dark-color="$textSecondaryDark"
+                                >
+                                  {t('processing_fee')}: {method.processingFee.toFixed(2)}
+                                </Text>
                               )}
-                            </View>
-                          </View>
+                            </VStack>
 
-                          {/* Actions */}
-                          <View style={styles.methodActions}>
-                            <TouchableOpacity
-                              style={styles.actionIcon}
-                              onPress={() =>
-                                router.push(`/settings/order-settings/payment-methods/edit/${method.id}`)
-                              }
-                              activeOpacity={0.7}
-                            >
-                              <Text style={styles.actionIconText}>✏️</Text>
-                            </TouchableOpacity>
-                            {!method.isBuiltIn && (
-                              <TouchableOpacity
-                                style={styles.actionIcon}
-                                onPress={() => handleDelete(method.id, methodName)}
-                                activeOpacity={0.7}
+                            {/* Actions */}
+                            <HStack space="xs">
+                              <Pressable
+                                onPress={() => {
+                                  haptics.light();
+                                  router.push(`/settings/order-settings/payment-methods/edit/${method.id}` as any);
+                                }}
+                                w={40}
+                                h={40}
+                                borderRadius="$xl"
+                                alignItems="center"
+                                justifyContent="center"
+                                bg="$green50"
+                                $dark-bg="rgba(34, 197, 94, 0.15)"
                               >
-                                <Text style={styles.actionIconText}>🗑️</Text>
-                              </TouchableOpacity>
-                            )}
-                          </View>
-                        </View>
+                                <Edit2 size={18} color={colors.green500} strokeWidth={2.5} />
+                              </Pressable>
+                              {!method.isBuiltIn && (
+                                <Pressable
+                                  onPress={() => handleDelete(method.id, methodName, method.isBuiltIn)}
+                                  w={40}
+                                  h={40}
+                                  borderRadius="$xl"
+                                  alignItems="center"
+                                  justifyContent="center"
+                                  bg="$error50"
+                                  $dark-bg="rgba(239, 68, 68, 0.15)"
+                                >
+                                  <Trash2 size={18} color={colors.error} strokeWidth={2.5} />
+                                </Pressable>
+                              )}
+                            </HStack>
+                          </HStack>
+                        </Box>
+                      );
+                    })}
+                  </VStack>
+                </Box>
+              ))}
 
-                        {/* Divider between methods */}
-                        {methodIndex < methods.length - 1 && (
-                          <Divider spacing="none" style={styles.methodDividerLine} />
-                        )}
-                      </React.Fragment>
-                    );
-                  })}
-                </View>
-              </View>
-            ))}
-          </>
-        )}
-
-        {/* Add Button */}
-        <TouchableOpacity
-          style={[styles.addButton, { backgroundColor: colors.primary }]}
-          onPress={() => router.push('/settings/order-settings/payment-methods/add')}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.addButtonIcon}>+</Text>
-          <Text style={styles.addButtonText}>{t('settings:add_payment_method')}</Text>
-        </TouchableOpacity>
+              {/* Add Button */}
+              <Button
+                size="lg"
+                bg="$primary500"
+                borderRadius="$2xl"
+                onPress={() => {
+                  haptics.light();
+                  router.push('/settings/order-settings/payment-methods/add');
+                }}
+                mt="$4"
+              >
+                <HStack space="sm" alignItems="center">
+                  <Plus size={20} color="#FFFFFF" strokeWidth={2.5} />
+                  <ButtonText fontSize="$md" fontWeight="$bold" color="$white">
+                    {t('add_payment_method')}
+                  </ButtonText>
+                </HStack>
+              </Button>
+            </VStack>
+          )}
+        </Box>
       </ScrollView>
-    </View>
+    </Box>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: spacing.m,
-    paddingBottom: spacing.xl * 2,
-  },
-  centerContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
-  // Empty State
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: spacing.xl * 3,
-  },
-  emptyIcon: {
-    width: 80,
-    height: 80,
-    borderRadius: design.radius.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.l,
-  },
-  emptyIconText: {
-    fontSize: 40,
-  },
-  emptyTitle: {
-    ...design.typography.h3,
-    marginBottom: spacing.s,
-  },
-  emptySubtitle: {
-    ...design.typography.body,
-    textAlign: 'center',
-    paddingHorizontal: spacing.xl,
-  },
-
-  // Group Section
-  groupSection: {
-    marginBottom: spacing.l,
-  },
-  groupCard: {
-    borderRadius: design.radius.md,
-    borderWidth: 1,
-    overflow: 'hidden',
-  },
-
-  // Method Item
-  methodItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: spacing.m,
-  },
-  methodMain: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  methodIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: design.radius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: spacing.m,
-  },
-  methodIconText: {
-    fontSize: 18,
-  },
-  methodInfo: {
-    flex: 1,
-  },
-  methodHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-    gap: spacing.s,
-  },
-  methodName: {
-    ...design.typography.bodyBold,
-  },
-  inactiveBadge: {
-    paddingHorizontal: spacing.s,
-    paddingVertical: 2,
-    borderRadius: design.radius.sm,
-  },
-  inactiveBadgeText: {
-    ...design.typography.small,
-    fontWeight: '600',
-  },
-  methodDetails: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  methodDetailLabel: {
-    ...design.typography.caption,
-  },
-  methodDetailValue: {
-    ...design.typography.caption,
-    fontWeight: '600',
-  },
-
-  // Actions
-  methodActions: {
-    flexDirection: 'row',
-    gap: spacing.s,
-  },
-  actionIcon: {
-    width: 36,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  actionIconText: {
-    fontSize: 18,
-  },
-
-  // Divider
-  methodDividerLine: {
-    marginLeft: spacing.m + 40 + spacing.m,
-  },
-
-  // Add Button
-  addButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: spacing.l,
-    borderRadius: design.radius.md,
-    marginTop: spacing.l,
-    ...design.shadow.md,
-  },
-  addButtonIcon: {
-    fontSize: 24,
-    color: '#FFFFFF',
-    marginRight: spacing.s,
-  },
-  addButtonText: {
-    ...design.typography.bodyBold,
-    color: '#FFFFFF',
-  },
-});

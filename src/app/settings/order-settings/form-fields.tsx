@@ -1,19 +1,24 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Alert,
-  ActivityIndicator,
-  RefreshControl,
-  Switch,
-} from 'react-native';
+import { ScrollView, Alert, RefreshControl, Switch } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/store/themeStore';
-import { PageHeader } from '@/components/ui/PageHeader';
-import { spacing } from '@/theme/spacing';
+import { useRouter } from 'expo-router';
+import { haptics } from '@/utils/haptics';
+import {
+  Box,
+  HStack,
+  VStack,
+  Heading,
+  Text,
+  Pressable,
+  Spinner,
+} from '@gluestack-ui/themed';
+import {
+  ArrowLeft,
+  FileText,
+  CheckSquare,
+  Square,
+} from 'lucide-react-native';
 import {
   getCheckoutSettings,
   updateCheckoutSettings,
@@ -22,27 +27,41 @@ import {
 } from '@/services/checkout-settings.service';
 
 export default function FormFieldsScreen() {
-  const { t, i18n } = useTranslation(['settings', 'common']);
-  const { colors } = useTheme();
+  const { t, i18n } = useTranslation('settings');
+  const { colors, isDark } = useTheme();
+  const router = useRouter();
+  const isRTL = i18n.language === 'ar';
 
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [settings, setSettings] = useState<CheckoutSettings | null>(null);
   const [formFields, setFormFields] = useState<FormField[]>([]);
 
   const currentLanguage = i18n.language;
 
   // Load checkout settings
-  const loadSettings = useCallback(async () => {
+  const loadSettings = useCallback(async (isRefresh = false) => {
     try {
-      setLoading(true);
+      if (isRefresh) {
+        haptics.light();
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+
       const data = await getCheckoutSettings();
       setSettings(data);
       setFormFields(data.orderFormFields || []);
+
+      if (isRefresh) {
+        haptics.success();
+      }
     } catch (error: any) {
+      if (isRefresh) {
+        haptics.error();
+      }
       console.error('Load checkout settings error:', error);
-      Alert.alert(t('common:error'), error.message || t('settings:load_error'));
+      Alert.alert(t('error'), error.message || t('load_error'));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -53,13 +72,9 @@ export default function FormFieldsScreen() {
     loadSettings();
   }, [loadSettings]);
 
-  const onRefresh = useCallback(() => {
-    setRefreshing(true);
-    loadSettings();
-  }, [loadSettings]);
-
   // Toggle field enabled/disabled
   const handleToggleField = async (fieldId: string) => {
+    haptics.light();
     const updatedFields = formFields.map((field) =>
       field.id === fieldId ? { ...field, enabled: !field.enabled } : field
     );
@@ -67,9 +82,11 @@ export default function FormFieldsScreen() {
 
     try {
       await updateCheckoutSettings({ orderFormFields: updatedFields });
-      Alert.alert(t('common:success'), t('settings:form_field_updated'));
+      haptics.success();
+      Alert.alert(t('success'), t('form_field_updated'));
     } catch (error: any) {
-      Alert.alert(t('common:error'), error.message);
+      haptics.error();
+      Alert.alert(t('error'), error.message);
       // Revert on error
       loadSettings();
     }
@@ -77,6 +94,7 @@ export default function FormFieldsScreen() {
 
   // Toggle field required
   const handleToggleRequired = async (fieldId: string) => {
+    haptics.light();
     const updatedFields = formFields.map((field) =>
       field.id === fieldId ? { ...field, required: !field.required } : field
     );
@@ -84,9 +102,11 @@ export default function FormFieldsScreen() {
 
     try {
       await updateCheckoutSettings({ orderFormFields: updatedFields });
-      Alert.alert(t('common:success'), t('settings:form_field_updated'));
+      haptics.success();
+      Alert.alert(t('success'), t('form_field_updated'));
     } catch (error: any) {
-      Alert.alert(t('common:error'), error.message);
+      haptics.error();
+      Alert.alert(t('error'), error.message);
       // Revert on error
       loadSettings();
     }
@@ -97,168 +117,152 @@ export default function FormFieldsScreen() {
     return currentLanguage === 'ar' ? field.labelAr : field.label;
   };
 
-  if (loading && !refreshing) {
+  if (loading) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <PageHeader title={t('settings:form_fields')} />
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-        </View>
-      </View>
+      <Box flex={1} bg="$backgroundLight" $dark-bg="$backgroundDark" alignItems="center" justifyContent="center">
+        <Spinner size="large" color="$primary500" />
+        <Text mt="$4" color="$textSecondaryLight" $dark-color="$textSecondaryDark">
+          {t('loading')}
+        </Text>
+      </Box>
     );
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <PageHeader title={t('settings:form_fields')} />
-
+    <Box flex={1} bg="$backgroundLight" $dark-bg="$backgroundDark">
       <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingTop: 60, paddingBottom: 100 }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={onRefresh}
+            onRefresh={() => loadSettings(true)}
             tintColor={colors.primary}
             colors={[colors.primary]}
           />
         }
       >
-        {/* Description */}
-        <View style={[styles.descriptionCard, { backgroundColor: colors.surface }]}>
-          <Text style={[styles.descriptionText, { color: colors.textSecondary }]}>
-            {t('settings:form_fields_description')}
-          </Text>
-        </View>
+        <Box px="$4">
+          {formFields.length === 0 ? (
+            <Box alignItems="center" py="$20">
+              <Box
+                w={80}
+                h={80}
+                borderRadius="$full"
+                bg="$purple50"
+                $dark-bg="rgba(139, 92, 246, 0.15)"
+                alignItems="center"
+                justifyContent="center"
+                mb="$6"
+              >
+                <FileText size={40} color={colors.purple500} strokeWidth={2} />
+              </Box>
+              <Heading
+                size="lg"
+                color="$textLight"
+                $dark-color="$textDark"
+                mb="$2"
+                textAlign="center"
+              >
+                {t('no_form_fields')}
+              </Heading>
+            </Box>
+          ) : (
+            <VStack space="sm">
+              {formFields.map((field) => {
+                const fieldLabel = getFieldLabel(field);
+                return (
+                  <Box
+                    key={field.id}
+                    bg="$surfaceLight"
+                    $dark-bg="$surfaceDark"
+                    borderRadius="$2xl"
+                    overflow="hidden"
+                  >
+                    <HStack
+                      px="$4"
+                      py="$4"
+                      alignItems="center"
+                      space="md"
+                      flexDirection={isRTL ? 'row-reverse' : 'row'}
+                    >
+                      {/* Icon */}
+                      <Box
+                        w={48}
+                        h={48}
+                        borderRadius="$xl"
+                        bg={field.enabled ? '$purple50' : '$gray100'}
+                        $dark-bg={field.enabled ? 'rgba(139, 92, 246, 0.15)' : 'rgba(255, 255, 255, 0.05)'}
+                        alignItems="center"
+                        justifyContent="center"
+                      >
+                        <FileText
+                          size={24}
+                          color={field.enabled ? colors.purple500 : colors.textSecondary}
+                          strokeWidth={2}
+                        />
+                      </Box>
 
-        {/* Form Fields List */}
-        {formFields.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-              {t('settings:no_form_fields')}
-            </Text>
-          </View>
-        ) : (
-          <View style={styles.listContainer}>
-            {formFields.map((field) => {
-              const fieldLabel = getFieldLabel(field);
+                      {/* Info */}
+                      <VStack flex={1} space="xs">
+                        <Text
+                          fontSize="$md"
+                          fontWeight="$semibold"
+                          color="$textLight"
+                          $dark-color="$textDark"
+                          textAlign={isRTL ? 'right' : 'left'}
+                        >
+                          {fieldLabel}
+                        </Text>
 
-              return (
-                <View
-                  key={field.id}
-                  style={[
-                    styles.fieldCard,
-                    { backgroundColor: colors.surface, borderColor: colors.border },
-                  ]}
-                >
-                  <View style={styles.fieldHeader}>
-                    <View style={styles.fieldInfo}>
-                      <Text style={[styles.fieldName, { color: colors.text }]}>
-                        {fieldLabel}
-                      </Text>
-                      <Text style={[styles.fieldType, { color: colors.textSecondary }]}>
-                        {field.type}
-                      </Text>
-                    </View>
-                    <Switch
-                      value={field.enabled}
-                      onValueChange={() => handleToggleField(field.id)}
-                      trackColor={{ false: colors.border, true: colors.primary + '80' }}
-                      thumbColor={field.enabled ? colors.primary : colors.textSecondary}
-                    />
-                  </View>
+                        {/* Required Toggle */}
+                        {field.enabled && (
+                          <Pressable
+                            onPress={() => handleToggleRequired(field.id)}
+                            opacity={field.enabled ? 1 : 0.5}
+                            disabled={!field.enabled}
+                          >
+                            <HStack
+                              alignItems="center"
+                              space="xs"
+                              flexDirection={isRTL ? 'row-reverse' : 'row'}
+                            >
+                              {field.required ? (
+                                <CheckSquare size={16} color={colors.purple500} strokeWidth={2.5} />
+                              ) : (
+                                <Square size={16} color={colors.textSecondary} strokeWidth={2.5} />
+                              )}
+                              <Text
+                                fontSize="$sm"
+                                color={field.required ? '$purple500' : '$textSecondaryLight'}
+                                $dark-color={field.required ? '$purple400' : '$textSecondaryDark'}
+                              >
+                                {t('required')}
+                              </Text>
+                            </HStack>
+                          </Pressable>
+                        )}
+                      </VStack>
 
-                  {field.enabled && (
-                    <View style={styles.requiredRow}>
-                      <Text style={[styles.requiredLabel, { color: colors.text }]}>
-                        {t('settings:required')}
-                      </Text>
+                      {/* Enable/Disable Switch */}
                       <Switch
-                        value={field.required}
-                        onValueChange={() => handleToggleRequired(field.id)}
-                        trackColor={{ false: colors.border, true: colors.primary + '80' }}
-                        thumbColor={field.required ? colors.primary : colors.textSecondary}
+                        value={field.enabled}
+                        onValueChange={() => handleToggleField(field.id)}
+                        trackColor={{
+                          false: isDark ? 'rgba(255, 255, 255, 0.1)' : '#E5E5EA',
+                          true: colors.primary,
+                        }}
+                        thumbColor="#FFFFFF"
+                        ios_backgroundColor={isDark ? 'rgba(255, 255, 255, 0.1)' : '#E5E5EA'}
                       />
-                    </View>
-                  )}
-                </View>
-              );
-            })}
-          </View>
-        )}
+                    </HStack>
+                  </Box>
+                );
+              })}
+            </VStack>
+          )}
+        </Box>
       </ScrollView>
-    </View>
+    </Box>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: spacing.md,
-  },
-  centerContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  descriptionCard: {
-    padding: spacing.md,
-    borderRadius: 12,
-    marginBottom: spacing.md,
-  },
-  descriptionText: {
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    paddingVertical: spacing.xl * 2,
-  },
-  emptyText: {
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  listContainer: {
-    gap: spacing.md,
-  },
-  fieldCard: {
-    padding: spacing.md,
-    borderRadius: 12,
-    borderWidth: 1,
-  },
-  fieldHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  fieldInfo: {
-    flex: 1,
-  },
-  fieldName: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  fieldType: {
-    fontSize: 12,
-    textTransform: 'uppercase',
-  },
-  requiredRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: spacing.md,
-    paddingTop: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-  },
-  requiredLabel: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-});

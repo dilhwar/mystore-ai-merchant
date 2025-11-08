@@ -33,7 +33,11 @@ export interface ShippingRate {
   estimatedDays?: number | null;
   estimatedDeliveryTime?: string | null;
   isActive: boolean;
-  settings?: any;
+  settings?: {
+    timeUnit?: 'hours' | 'days';
+    translations?: Record<string, { name: string; description?: string }>;
+    [key: string]: any;
+  };
   translations?: Record<string, { name: string; description?: string }>;
   zone?: ShippingZone;
   createdAt: string;
@@ -63,6 +67,10 @@ export interface CreateShippingRateData {
   estimatedDays?: number;
   estimatedDeliveryTime?: string;
   isActive?: boolean;
+  settings?: {
+    timeUnit?: 'hours' | 'days';
+    [key: string]: any;
+  };
   translations?: Record<string, { name: string; description?: string }>;
 }
 

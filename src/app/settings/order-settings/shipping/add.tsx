@@ -1,22 +1,31 @@
 import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TextInput,
-  TouchableOpacity,
-  Alert,
-  ActivityIndicator,
-  Switch,
-} from 'react-native';
+import { ScrollView, Alert, Switch } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/store/themeStore';
 import { useRouter } from 'expo-router';
-import { PageHeader } from '@/components/ui/PageHeader';
-import { SectionHeader } from '@/components/ui/SectionHeader';
-import { spacing } from '@/theme/spacing';
-import { design } from '@/theme/design';
+import { haptics } from '@/utils/haptics';
+import { useDynamicForm } from '@/hooks/useDynamicForm';
+import { DynamicLanguageFields } from '@/components/forms/DynamicLanguageFields';
+import {
+  Box,
+  HStack,
+  VStack,
+  Heading,
+  Text,
+  Pressable,
+  Spinner,
+  Input,
+  InputField,
+  Button,
+  ButtonText,
+} from '@gluestack-ui/themed';
+import {
+  ArrowLeft,
+  Truck,
+  Save,
+  MapPin,
+  ChevronDown,
+} from 'lucide-react-native';
 import {
   createShippingRate,
   getShippingZones,
@@ -24,19 +33,22 @@ import {
 } from '@/services/shipping.service';
 
 export default function AddShippingMethodScreen() {
-  const { t, i18n } = useTranslation(['settings', 'common']);
-  const { colors } = useTheme();
+  const { t, i18n } = useTranslation('settings');
+  const { colors, isDark } = useTheme();
   const router = useRouter();
+  const isRTL = i18n.language === 'ar';
 
   const [loading, setLoading] = useState(false);
   const [zones, setZones] = useState<ShippingZone[]>([]);
-  const [loadingZones, setLoadingZones] = useState(false);
+  const [loadingZones, setLoadingZones] = useState(true);
 
-  // Form state
-  const [name, setName] = useState('');
-  const [nameAr, setNameAr] = useState('');
+  // Use dynamic form hook for language fields
+  const { formData, setFormData, buildPayload, validateRequiredFields } = useDynamicForm(['name']);
+
   const [cost, setCost] = useState('');
-  const [estimatedDays, setEstimatedDays] = useState('');
+  const [minTime, setMinTime] = useState('');
+  const [maxTime, setMaxTime] = useState('');
+  const [timeUnit, setTimeUnit] = useState<'hours' | 'days'>('days');
   const [isActive, setIsActive] = useState(true);
   const [selectedZoneId, setSelectedZoneId] = useState<string>('');
 
@@ -52,8 +64,25 @@ export default function AddShippingMethodScreen() {
       setLoadingZones(true);
       const zonesData = await getShippingZones();
       setZones(zonesData);
+
+      // Auto-select first zone if available
+      if (zonesData.length > 0 && !selectedZoneId) {
+        setSelectedZoneId(zonesData[0].id);
+      } else if (zonesData.length === 0) {
+        // Show message that zones are required
+        Alert.alert(
+          t('error'),
+          'No shipping zones found. Please create a shipping zone first.',
+          [
+            {
+              text: t('ok'),
+              onPress: () => router.back(),
+            },
+          ]
+        );
+      }
     } catch (error: any) {
-      Alert.alert(t('common:error'), error.message || t('settings:load_zones_error'));
+      Alert.alert(t('error'), error.message || t('load_zones_error'));
     } finally {
       setLoadingZones(false);
     }
@@ -61,18 +90,28 @@ export default function AddShippingMethodScreen() {
 
   // Validate form
   const validateForm = (): boolean => {
-    if (!name.trim()) {
-      Alert.alert(t('common:error'), t('settings:name_required'));
+    if (!validateRequiredFields()) {
+      Alert.alert(t('error'), t('name_required'));
       return false;
     }
 
     if (!cost.trim() || isNaN(Number(cost)) || Number(cost) < 0) {
-      Alert.alert(t('common:error'), t('settings:cost_invalid'));
+      Alert.alert(t('error'), t('cost_invalid'));
       return false;
     }
 
-    if (estimatedDays && (isNaN(Number(estimatedDays)) || Number(estimatedDays) < 0)) {
-      Alert.alert(t('common:error'), t('settings:days_invalid'));
+    if (minTime && (isNaN(Number(minTime)) || Number(minTime) < 0)) {
+      Alert.alert(t('error'), t('time_invalid'));
+      return false;
+    }
+
+    if (maxTime && (isNaN(Number(maxTime)) || Number(maxTime) < 0)) {
+      Alert.alert(t('error'), t('time_invalid'));
+      return false;
+    }
+
+    if (minTime && maxTime && Number(minTime) > Number(maxTime)) {
+      Alert.alert(t('error'), t('min_greater_than_max'));
       return false;
     }
 
@@ -84,356 +123,320 @@ export default function AddShippingMethodScreen() {
     if (!validateForm()) return;
 
     try {
+      haptics.light();
       setLoading(true);
 
-      const data = {
-        name: name.trim(),
-        nameAr: nameAr.trim() || undefined,
+      // Build estimated time string
+      let estimatedTime = '';
+      if (minTime && maxTime) {
+        estimatedTime = `${minTime}-${maxTime}`;
+      } else if (minTime) {
+        estimatedTime = minTime;
+      } else if (maxTime) {
+        estimatedTime = maxTime;
+      }
+
+      // Ensure we have a zoneId (required field)
+      if (!selectedZoneId) {
+        Alert.alert(t('error'), 'Please select a shipping zone');
+        return;
+      }
+
+      const data: any = {
+        ...buildPayload(),
+        type: 'FLAT_RATE', // Default type
         cost: Number(cost),
-        estimatedDays: estimatedDays ? Number(estimatedDays) : undefined,
+        estimatedDeliveryTime: estimatedTime || undefined,
         isActive,
-        zoneId: selectedZoneId || undefined,
+        zoneId: selectedZoneId,
+      };
+
+      // Add settings with timeUnit (keep translations separate)
+      data.settings = {
+        timeUnit,
       };
 
       await createShippingRate(data);
 
+      haptics.success();
       Alert.alert(
-        t('common:success'),
-        t('settings:shipping_method_created'),
+        t('success'),
+        t('shipping_method_created'),
         [
           {
-            text: t('common:ok'),
+            text: t('ok'),
             onPress: () => router.back(),
           },
         ]
       );
     } catch (error: any) {
-      Alert.alert(t('common:error'), error.message);
+      haptics.error();
+      Alert.alert(t('error'), error.message);
     } finally {
       setLoading(false);
     }
   };
 
+  // Get zone label
+  const getZoneLabel = (zone: ShippingZone): string => {
+    return currentLanguage === 'ar' && zone.nameAr ? zone.nameAr : zone.name;
+  };
+
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <PageHeader title={t('settings:add_shipping_method')} showBack />
-
+    <Box flex={1} bg="$backgroundLight" $dark-bg="$backgroundDark">
       <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingTop: 60, paddingBottom: 100 }}
       >
-        {/* Basic Information */}
-        <View style={styles.section}>
-          <SectionHeader title={t('settings:basic_info')} icon="📝" />
+        <Box px="$4">
+          <VStack space="lg">
+            <VStack
+                space="md"
+                bg="$surfaceLight"
+                $dark-bg="$surfaceDark"
+                borderRadius="$2xl"
+                p="$4"
+              >
+                {/* Dynamic Name Fields based on Store Languages */}
+                <DynamicLanguageFields
+                  fieldName="name"
+                  formData={formData}
+                  setFormData={setFormData}
+                  placeholder={t('shipping_method_name_placeholder')}
+                />
 
-          <View style={[styles.card, { backgroundColor: colors.surface, ...design.shadow.sm }]}>
-            {/* English Name */}
-            <View style={styles.fieldContainer}>
-              <Text style={[styles.label, { color: colors.text }]}>
-                {t('settings:name')} ({t('common:en')}) *
-              </Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: colors.background,
-                    color: colors.text,
-                    borderColor: colors.border,
-                  },
-                ]}
-                value={name}
-                onChangeText={setName}
-                placeholder={t('settings:shipping_method_name_placeholder')}
-                placeholderTextColor={colors.textSecondary}
-              />
-            </View>
-
-            {/* Arabic Name */}
-            <View style={styles.fieldContainer}>
-              <Text style={[styles.label, { color: colors.text }]}>
-                {t('settings:name')} ({t('common:ar')})
-              </Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: colors.background,
-                    color: colors.text,
-                    borderColor: colors.border,
-                    textAlign: 'right',
-                  },
-                ]}
-                value={nameAr}
-                onChangeText={setNameAr}
-                placeholder={t('settings:shipping_method_name_ar_placeholder')}
-                placeholderTextColor={colors.textSecondary}
-              />
-            </View>
-
-            {/* Cost */}
-            <View style={styles.fieldContainer}>
-              <Text style={[styles.label, { color: colors.text }]}>
-                {t('settings:cost')} *
-              </Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: colors.background,
-                    color: colors.text,
-                    borderColor: colors.border,
-                  },
-                ]}
-                value={cost}
-                onChangeText={setCost}
-                placeholder="0.00"
-                placeholderTextColor={colors.textSecondary}
-                keyboardType="decimal-pad"
-              />
-            </View>
-
-            {/* Estimated Days */}
-            <View style={styles.fieldContainer}>
-              <Text style={[styles.label, { color: colors.text }]}>
-                {t('settings:estimated_days')}
-              </Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: colors.background,
-                    color: colors.text,
-                    borderColor: colors.border,
-                  },
-                ]}
-                value={estimatedDays}
-                onChangeText={setEstimatedDays}
-                placeholder={t('settings:days_placeholder')}
-                placeholderTextColor={colors.textSecondary}
-                keyboardType="number-pad"
-              />
-            </View>
-          </View>
-        </View>
-
-        {/* Shipping Zone */}
-        <View style={styles.section}>
-          <SectionHeader title={t('settings:shipping_zone')} icon="📍" />
-
-          <View style={[styles.card, { backgroundColor: colors.surface, ...design.shadow.sm }]}>
-            {loadingZones ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="small" color={colors.primary} />
-              </View>
-            ) : zones.length === 0 ? (
-              <Text style={[styles.noZonesText, { color: colors.textSecondary }]}>
-                {t('settings:no_zones_available')}
-              </Text>
-            ) : (
-              <>
-                {/* No Zone Option */}
-                <TouchableOpacity
-                  style={styles.zoneOption}
-                  onPress={() => setSelectedZoneId('')}
-                >
-                  <View
-                    style={[
-                      styles.radio,
-                      {
-                        borderColor: colors.border,
-                        backgroundColor: selectedZoneId === '' ? colors.primary : 'transparent',
-                      },
-                    ]}
+                {/* Cost */}
+                <VStack space="xs">
+                  <Text
+                    fontSize="$sm"
+                    fontWeight="$medium"
+                    color="$textLight"
+                    $dark-color="$textDark"
+                    textAlign={isRTL ? 'right' : 'left'}
                   >
-                    {selectedZoneId === '' && <View style={styles.radioInner} />}
-                  </View>
-                  <Text style={[styles.zoneName, { color: colors.text }]}>
-                    {t('settings:no_zone')}
+                    {t('cost')} *
                   </Text>
-                </TouchableOpacity>
+                  <Input
+                    borderRadius="$xl"
+                    borderColor="$borderLight"
+                    $dark-borderColor="$borderDark"
+                    bg="$backgroundLight"
+                    $dark-bg="$backgroundDark"
+                  >
+                    <InputField
+                      value={cost}
+                      onChangeText={setCost}
+                      placeholder="0.00"
+                      keyboardType="decimal-pad"
+                      color="$textLight"
+                      $dark-color="$textDark"
+                      textAlign={isRTL ? 'right' : 'left'}
+                    />
+                  </Input>
+                </VStack>
 
-                {/* Zone Options */}
-                {zones.map((zone) => {
-                  const zoneName =
-                    currentLanguage === 'ar' && zone.nameAr ? zone.nameAr : zone.name;
-
-                  return (
-                    <TouchableOpacity
-                      key={zone.id}
-                      style={styles.zoneOption}
-                      onPress={() => setSelectedZoneId(zone.id)}
+                {/* Time Unit Selection */}
+                <VStack space="xs">
+                  <Text
+                    fontSize="$sm"
+                    fontWeight="$medium"
+                    color="$textLight"
+                    $dark-color="$textDark"
+                    textAlign={isRTL ? 'right' : 'left'}
+                  >
+                    {t('delivery_time_unit')}
+                  </Text>
+                  <HStack space="sm">
+                    <Pressable
+                      flex={1}
+                      onPress={() => {
+                        haptics.light();
+                        setTimeUnit('hours');
+                      }}
+                      borderRadius="$xl"
+                      borderWidth={2}
+                      borderColor={timeUnit === 'hours' ? '$primary500' : '$borderLight'}
+                      $dark-borderColor={timeUnit === 'hours' ? '$primary500' : '$borderDark'}
+                      bg={timeUnit === 'hours' ? '$primary50' : '$backgroundLight'}
+                      $dark-bg={timeUnit === 'hours' ? 'rgba(59, 130, 246, 0.1)' : '$backgroundDark'}
+                      px="$4"
+                      py="$3"
+                      alignItems="center"
                     >
-                      <View
-                        style={[
-                          styles.radio,
-                          {
-                            borderColor: colors.border,
-                            backgroundColor:
-                              selectedZoneId === zone.id ? colors.primary : 'transparent',
-                          },
-                        ]}
+                      <Text
+                        fontSize="$md"
+                        fontWeight={timeUnit === 'hours' ? '$semibold' : '$normal'}
+                        color={timeUnit === 'hours' ? '$primary500' : '$textLight'}
+                        $dark-color={timeUnit === 'hours' ? '$primary400' : '$textDark'}
                       >
-                        {selectedZoneId === zone.id && <View style={styles.radioInner} />}
-                      </View>
-                      <Text style={[styles.zoneName, { color: colors.text }]}>
-                        {zoneName}
+                        {t('hours')}
                       </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </>
-            )}
-          </View>
-        </View>
+                    </Pressable>
+                    <Pressable
+                      flex={1}
+                      onPress={() => {
+                        haptics.light();
+                        setTimeUnit('days');
+                      }}
+                      borderRadius="$xl"
+                      borderWidth={2}
+                      borderColor={timeUnit === 'days' ? '$primary500' : '$borderLight'}
+                      $dark-borderColor={timeUnit === 'days' ? '$primary500' : '$borderDark'}
+                      bg={timeUnit === 'days' ? '$primary50' : '$backgroundLight'}
+                      $dark-bg={timeUnit === 'days' ? 'rgba(59, 130, 246, 0.1)' : '$backgroundDark'}
+                      px="$4"
+                      py="$3"
+                      alignItems="center"
+                    >
+                      <Text
+                        fontSize="$md"
+                        fontWeight={timeUnit === 'days' ? '$semibold' : '$normal'}
+                        color={timeUnit === 'days' ? '$primary500' : '$textLight'}
+                        $dark-color={timeUnit === 'days' ? '$primary400' : '$textDark'}
+                      >
+                        {t('days')}
+                      </Text>
+                    </Pressable>
+                  </HStack>
+                </VStack>
 
-        {/* Settings */}
-        <View style={styles.section}>
-          <SectionHeader title={t('settings:settings')} icon="⚙️" />
+                {/* Estimated Delivery Time Range */}
+                <VStack space="xs">
+                  <Text
+                    fontSize="$sm"
+                    fontWeight="$medium"
+                    color="$textLight"
+                    $dark-color="$textDark"
+                    textAlign={isRTL ? 'right' : 'left'}
+                  >
+                    {t('estimated_delivery_time')}
+                  </Text>
+                  <HStack space="sm" alignItems="center" flexDirection={isRTL ? 'row-reverse' : 'row'}>
+                    <Input
+                      flex={1}
+                      borderRadius="$xl"
+                      borderColor="$borderLight"
+                      $dark-borderColor="$borderDark"
+                      bg="$backgroundLight"
+                      $dark-bg="$backgroundDark"
+                    >
+                      <InputField
+                        value={minTime}
+                        onChangeText={setMinTime}
+                        placeholder={timeUnit === 'hours' ? '1' : '1'}
+                        keyboardType="number-pad"
+                        color="$textLight"
+                        $dark-color="$textDark"
+                        textAlign="center"
+                      />
+                    </Input>
+                    <Text
+                      fontSize="$md"
+                      color="$textSecondaryLight"
+                      $dark-color="$textSecondaryDark"
+                      px="$2"
+                    >
+                      -
+                    </Text>
+                    <Input
+                      flex={1}
+                      borderRadius="$xl"
+                      borderColor="$borderLight"
+                      $dark-borderColor="$borderDark"
+                      bg="$backgroundLight"
+                      $dark-bg="$backgroundDark"
+                    >
+                      <InputField
+                        value={maxTime}
+                        onChangeText={setMaxTime}
+                        placeholder={timeUnit === 'hours' ? '3' : '2'}
+                        keyboardType="number-pad"
+                        color="$textLight"
+                        $dark-color="$textDark"
+                        textAlign="center"
+                      />
+                    </Input>
+                  </HStack>
+                  <Text
+                    fontSize="$xs"
+                    color="$textSecondaryLight"
+                    $dark-color="$textSecondaryDark"
+                    textAlign={isRTL ? 'right' : 'left'}
+                  >
+                    {timeUnit === 'hours' ? t('example_hours') : t('example_days')}
+                  </Text>
+                </VStack>
+              </VStack>
 
-          <View style={[styles.card, { backgroundColor: colors.surface, ...design.shadow.sm }]}>
-            <View style={styles.switchContainer}>
-              <View style={styles.switchInfo}>
-                <Text style={[styles.switchLabel, { color: colors.text }]}>
-                  {t('settings:active')}
-                </Text>
-                <Text style={[styles.switchDescription, { color: colors.textSecondary }]}>
-                  {t('settings:active_shipping_description')}
-                </Text>
-              </View>
-              <Switch
-                value={isActive}
-                onValueChange={setIsActive}
-                trackColor={{ false: colors.border, true: colors.primary + '60' }}
-                thumbColor={isActive ? colors.primary : colors.textSecondary}
-              />
-            </View>
-          </View>
-        </View>
+            <Box
+                bg="$surfaceLight"
+                $dark-bg="$surfaceDark"
+                borderRadius="$2xl"
+                p="$4"
+              >
+                <HStack
+                  alignItems="center"
+                  justifyContent="space-between"
+                  flexDirection={isRTL ? 'row-reverse' : 'row'}
+                >
+                  <VStack flex={1}>
+                    <Text
+                      fontSize="$md"
+                      fontWeight="$semibold"
+                      color="$textLight"
+                      $dark-color="$textDark"
+                      textAlign={isRTL ? 'right' : 'left'}
+                    >
+                      {t('active')}
+                    </Text>
+                    <Text
+                      fontSize="$sm"
+                      color="$textSecondaryLight"
+                      $dark-color="$textSecondaryDark"
+                      textAlign={isRTL ? 'right' : 'left'}
+                    >
+                      {t('active_shipping_description')}
+                    </Text>
+                  </VStack>
+                  <Switch
+                    value={isActive}
+                    onValueChange={(value) => {
+                      haptics.light();
+                      setIsActive(value);
+                    }}
+                    trackColor={{
+                      false: isDark ? 'rgba(255, 255, 255, 0.1)' : '#E5E5EA',
+                      true: colors.primary,
+                    }}
+                    thumbColor="#FFFFFF"
+                    ios_backgroundColor={isDark ? 'rgba(255, 255, 255, 0.1)' : '#E5E5EA'}
+                  />
+                </HStack>
+              </Box>
 
-        {/* Save Button */}
-        <TouchableOpacity
-          style={[
-            styles.saveButton,
-            { backgroundColor: colors.primary, ...design.shadow.md },
-            loading && styles.saveButtonDisabled,
-          ]}
-          onPress={handleSave}
-          disabled={loading}
-          activeOpacity={0.8}
-        >
-          {loading ? (
-            <ActivityIndicator size="small" color="#FFFFFF" />
-          ) : (
-            <Text style={styles.saveButtonText}>{t('common:save')}</Text>
-          )}
-        </TouchableOpacity>
+            {/* Save Button */}
+            <Button
+              size="lg"
+              bg="$primary500"
+              borderRadius="$2xl"
+              onPress={handleSave}
+              isDisabled={loading}
+              mt="$4"
+            >
+              {loading ? (
+                <Spinner color="#FFFFFF" />
+              ) : (
+                <HStack space="sm" alignItems="center">
+                  <Save size={20} color="#FFFFFF" strokeWidth={2.5} />
+                  <ButtonText fontSize="$md" fontWeight="$bold" color="$white">
+                    {t('save_changes')}
+                  </ButtonText>
+                </HStack>
+              )}
+            </Button>
+          </VStack>
+        </Box>
       </ScrollView>
-    </View>
+    </Box>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: spacing.m,
-    paddingBottom: spacing.xl * 2,
-  },
-
-  // Section
-  section: {
-    marginBottom: spacing.l,
-  },
-  card: {
-    borderRadius: design.radius.md,
-    padding: spacing.m,
-  },
-
-  // Form Fields
-  fieldContainer: {
-    marginBottom: spacing.m,
-  },
-  label: {
-    ...design.typography.bodyBold,
-    marginBottom: spacing.s,
-  },
-  input: {
-    ...design.typography.body,
-    borderWidth: 1,
-    borderRadius: design.radius.sm,
-    padding: spacing.m,
-  },
-
-  // Zones
-  loadingContainer: {
-    padding: spacing.l,
-    alignItems: 'center',
-  },
-  noZonesText: {
-    ...design.typography.body,
-    textAlign: 'center',
-    padding: spacing.l,
-  },
-  zoneOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: spacing.m,
-  },
-  radio: {
-    width: 20,
-    height: 20,
-    borderRadius: design.radius.full,
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: spacing.m,
-  },
-  radioInner: {
-    width: 8,
-    height: 8,
-    borderRadius: design.radius.full,
-    backgroundColor: '#FFFFFF',
-  },
-  zoneName: {
-    ...design.typography.body,
-  },
-
-  // Switch
-  switchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  switchInfo: {
-    flex: 1,
-    marginRight: spacing.m,
-  },
-  switchLabel: {
-    ...design.typography.bodyBold,
-    marginBottom: 4,
-  },
-  switchDescription: {
-    ...design.typography.caption,
-  },
-
-  // Save Button
-  saveButton: {
-    padding: spacing.l,
-    borderRadius: design.radius.md,
-    alignItems: 'center',
-    marginTop: spacing.l,
-  },
-  saveButtonDisabled: {
-    opacity: 0.6,
-  },
-  saveButtonText: {
-    ...design.typography.bodyBold,
-    color: '#FFFFFF',
-  },
-});

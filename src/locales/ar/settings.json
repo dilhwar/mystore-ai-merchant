@@ -33,6 +33,7 @@
 
   "shipping_methods": "طرق الشحن",
   "shipping_methods_description": "إدارة مناطق الشحن وأسعار التوصيل",
+  "shipping_methods_brief": "إدارة خيارات التوصيل",
   "add_shipping_method": "إضافة طريقة شحن",
   "no_shipping_methods": "لا توجد طرق شحن حتى الآن",
   "add_shipping_methods_hint": "أضف طرق الشحن لتمكين خيارات التوصيل لعملائك",
@@ -49,9 +50,13 @@
   "shipping_method_name_placeholder": "مثال: شحن عادي",
   "shipping_method_name_ar_placeholder": "مثال: شحن عادي",
   "cost_invalid": "يجب أن تكون التكلفة رقمًا موجبًا صالحًا",
-  "estimated_days": "أيام التوصيل المتوقعة",
-  "days_placeholder": "مثال: 3-5",
-  "days_invalid": "يجب أن تكون الأيام رقمًا موجبًا صالحًا",
+  "delivery_time_unit": "وحدة وقت التوصيل",
+  "hours": "ساعات",
+  "estimated_delivery_time": "وقت التوصيل المتوقع",
+  "example_hours": "مثال: 1-3 ساعات",
+  "example_days": "مثال: 1-2 أيام",
+  "time_invalid": "يجب أن يكون الوقت رقمًا موجبًا صالحًا",
+  "min_greater_than_max": "الحد الأدنى للوقت لا يمكن أن يكون أكبر من الحد الأقصى",
   "shipping_zone": "منطقة الشحن",
   "load_zones_error": "فشل تحميل مناطق الشحن",
   "no_zones_available": "لا توجد مناطق شحن متاحة",
@@ -212,5 +217,8 @@
   "whatsapp_language": "لغة واتساب",
   "whatsapp_language_description": "لغة إشعارات واتساب",
   "loading": "جاري التحميل...",
-  "settings_saved_successfully": "تم حفظ الإعدادات بنجاح"
+  "settings_saved_successfully": "تم حفظ الإعدادات بنجاح",
+  "store_status": "حالة المتجر",
+  "published": "منشور",
+  "draft": "مسودة"
 }

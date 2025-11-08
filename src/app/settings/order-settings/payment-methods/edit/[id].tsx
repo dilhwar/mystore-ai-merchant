@@ -1,22 +1,31 @@
 import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TextInput,
-  TouchableOpacity,
-  Alert,
-  ActivityIndicator,
-  Switch,
-} from 'react-native';
+import { ScrollView, Alert, Switch } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/store/themeStore';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { PageHeader } from '@/components/ui/PageHeader';
-import { SectionHeader } from '@/components/ui/SectionHeader';
-import { spacing } from '@/theme/spacing';
-import { design } from '@/theme/design';
+import { haptics } from '@/utils/haptics';
+import { useDynamicForm } from '@/hooks/useDynamicForm';
+import { DynamicLanguageFields } from '@/components/forms/DynamicLanguageFields';
+import {
+  Box,
+  HStack,
+  VStack,
+  Heading,
+  Text,
+  Pressable,
+  Spinner,
+  Input,
+  InputField,
+  Button,
+  ButtonText,
+  Textarea,
+  TextareaInput,
+} from '@gluestack-ui/themed';
+import {
+  ArrowLeft,
+  Save,
+  Info,
+} from 'lucide-react-native';
 import {
   getPaymentMethod,
   updatePaymentMethod,
@@ -24,22 +33,23 @@ import {
 } from '@/services/payment-methods.service';
 
 export default function EditPaymentMethodScreen() {
-  const { t } = useTranslation(['settings', 'common']);
-  const { colors } = useTheme();
+  const { t, i18n } = useTranslation('settings');
+  const { colors, isDark } = useTheme();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const isRTL = i18n.language === 'ar';
 
   const [loading, setLoading] = useState(false);
   const [loadingData, setLoadingData] = useState(true);
   const [method, setMethod] = useState<PaymentMethod | null>(null);
 
-  // Form state
-  const [name, setName] = useState('');
-  const [nameAr, setNameAr] = useState('');
-  const [description, setDescription] = useState('');
-  const [descriptionAr, setDescriptionAr] = useState('');
-  const [instructions, setInstructions] = useState('');
-  const [instructionsAr, setInstructionsAr] = useState('');
+  // Use dynamic form hook for language fields
+  const { formData, setFormData, buildPayload, validateRequiredFields } = useDynamicForm([
+    'name',
+    'description',
+    'instructions',
+  ]);
+
   const [processingFee, setProcessingFee] = useState('');
   const [isActive, setIsActive] = useState(true);
 
@@ -56,25 +66,24 @@ export default function EditPaymentMethodScreen() {
       const methodData = await getPaymentMethod(id as string);
       setMethod(methodData);
 
-      setName(methodData.name);
-      setNameAr(methodData.nameAr || '');
-      setDescription(methodData.description || '');
-      setDescriptionAr(methodData.descriptionAr || '');
-      setInstructions(methodData.instructions || '');
-      setInstructionsAr(methodData.instructionsAr || '');
+      // Initialize form data with existing values
+      const initialData: Record<string, string> = {};
+      Object.keys(methodData).forEach((key) => {
+        if (key.startsWith('name') || key.startsWith('description') || key.startsWith('instructions')) {
+          initialData[key] = methodData[key] || '';
+        }
+      });
+      setFormData(initialData);
+
       setProcessingFee(methodData.processingFee ? methodData.processingFee.toString() : '');
       setIsActive(methodData.isActive);
     } catch (error: any) {
-      Alert.alert(
-        t('common:error'),
-        error.message || t('settings:load_error'),
-        [
-          {
-            text: t('common:ok'),
-            onPress: () => router.back(),
-          },
-        ]
-      );
+      Alert.alert(t('error'), error.message || t('load_error'), [
+        {
+          text: t('ok'),
+          onPress: () => router.back(),
+        },
+      ]);
     } finally {
       setLoadingData(false);
     }
@@ -82,13 +91,13 @@ export default function EditPaymentMethodScreen() {
 
   // Validate form
   const validateForm = (): boolean => {
-    if (!name.trim()) {
-      Alert.alert(t('common:error'), t('settings:name_required'));
+    if (!validateRequiredFields()) {
+      Alert.alert(t('error'), t('name_required'));
       return false;
     }
 
     if (processingFee && (isNaN(Number(processingFee)) || Number(processingFee) < 0)) {
-      Alert.alert(t('common:error'), t('settings:fee_invalid'));
+      Alert.alert(t('error'), t('fee_invalid'));
       return false;
     }
 
@@ -100,39 +109,27 @@ export default function EditPaymentMethodScreen() {
     if (!validateForm()) return;
 
     try {
+      haptics.light();
       setLoading(true);
 
-      const data: any = {
-        name: name.trim(),
-        nameAr: nameAr.trim() || undefined,
-        description: description.trim() || undefined,
-        descriptionAr: descriptionAr.trim() || undefined,
+      const data = {
+        ...buildPayload(),
         isActive,
         feeAmount: processingFee ? Number(processingFee) : undefined,
       };
 
-      // Only include account info if instructions are provided
-      if (instructions.trim()) {
-        data.accountInfo = {
-          instructions: instructions.trim(),
-          instructionsAr: instructionsAr.trim() || undefined,
-        };
-      }
-
       await updatePaymentMethod(id as string, data);
 
-      Alert.alert(
-        t('common:success'),
-        t('settings:payment_method_updated'),
-        [
-          {
-            text: t('common:ok'),
-            onPress: () => router.back(),
-          },
-        ]
-      );
+      haptics.success();
+      Alert.alert(t('success'), t('payment_method_updated'), [
+        {
+          text: t('ok'),
+          onPress: () => router.back(),
+        },
+      ]);
     } catch (error: any) {
-      Alert.alert(t('common:error'), error.message);
+      haptics.error();
+      Alert.alert(t('error'), error.message);
     } finally {
       setLoading(false);
     }
@@ -140,352 +137,194 @@ export default function EditPaymentMethodScreen() {
 
   if (loadingData) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <PageHeader title={t('settings:edit_payment_method')} showBack />
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-        </View>
-      </View>
+      <Box flex={1} bg="$backgroundLight" $dark-bg="$backgroundDark" alignItems="center" justifyContent="center">
+        <Spinner size="large" color="$primary500" />
+        <Text mt="$4" color="$textSecondaryLight" $dark-color="$textSecondaryDark">
+          {t('loading')}
+        </Text>
+      </Box>
     );
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <PageHeader title={t('settings:edit_payment_method')} showBack />
-
+    <Box flex={1} bg="$backgroundLight" $dark-bg="$backgroundDark">
       <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingTop: 60, paddingBottom: 100 }}
       >
-        {/* Built-in Badge */}
-        {method?.isBuiltIn && (
-          <View style={[styles.builtInNotice, { backgroundColor: colors.primary + '10' }]}>
-            <Text style={[styles.builtInNoticeText, { color: colors.primary }]}>
-              🏛️ {t('settings:built_in_method_notice')}
-            </Text>
-          </View>
-        )}
+        <Box px="$4">
+          <VStack space="lg">
+            {/* Built-in Notice */}
+            {method?.isBuiltIn && (
+              <Box
+                bg="$blue50"
+                $dark-bg="rgba(59, 130, 246, 0.1)"
+                borderRadius="$2xl"
+                p="$4"
+              >
+                <HStack space="sm" alignItems="center" flexDirection={isRTL ? 'row-reverse' : 'row'}>
+                  <Info size={20} color={colors.blue500} strokeWidth={2.5} />
+                  <Text
+                    fontSize="$sm"
+                    color="$blue700"
+                    $dark-color="$blue400"
+                    flex={1}
+                    textAlign={isRTL ? 'right' : 'left'}
+                  >
+                    {t('built_in_method_notice')}
+                  </Text>
+                </HStack>
+              </Box>
+            )}
 
-        {/* Basic Information */}
-        <View style={styles.section}>
-          <SectionHeader title={t('settings:basic_info')} icon="📝" />
-
-          <View style={[styles.card, { backgroundColor: colors.surface, ...design.shadow.sm }]}>
-            {/* English Name */}
-            <View style={styles.fieldContainer}>
-              <Text style={[styles.label, { color: colors.text }]}>
-                {t('settings:name')} ({t('common:en')}) *
-              </Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: colors.background,
-                    color: colors.text,
-                    borderColor: colors.border,
-                  },
-                  method?.isBuiltIn && styles.inputDisabled,
-                ]}
-                value={name}
-                onChangeText={setName}
-                placeholder={t('settings:payment_method_name_placeholder')}
-                placeholderTextColor={colors.textSecondary}
-                editable={!method?.isBuiltIn}
-              />
-            </View>
-
-            {/* Arabic Name */}
-            <View style={styles.fieldContainer}>
-              <Text style={[styles.label, { color: colors.text }]}>
-                {t('settings:name')} ({t('common:ar')})
-              </Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: colors.background,
-                    color: colors.text,
-                    borderColor: colors.border,
-                    textAlign: 'right',
-                  },
-                ]}
-                value={nameAr}
-                onChangeText={setNameAr}
-                placeholder={t('settings:payment_method_name_ar_placeholder')}
-                placeholderTextColor={colors.textSecondary}
-              />
-            </View>
-
-            {/* English Description */}
-            <View style={styles.fieldContainer}>
-              <Text style={[styles.label, { color: colors.text }]}>
-                {t('settings:description')} ({t('common:en')})
-              </Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  styles.textArea,
-                  {
-                    backgroundColor: colors.background,
-                    color: colors.text,
-                    borderColor: colors.border,
-                  },
-                ]}
-                value={description}
-                onChangeText={setDescription}
-                placeholder={t('settings:payment_method_description_placeholder')}
-                placeholderTextColor={colors.textSecondary}
-                multiline
-                numberOfLines={3}
-              />
-            </View>
-
-            {/* Arabic Description */}
-            <View style={styles.fieldContainer}>
-              <Text style={[styles.label, { color: colors.text }]}>
-                {t('settings:description')} ({t('common:ar')})
-              </Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  styles.textArea,
-                  {
-                    backgroundColor: colors.background,
-                    color: colors.text,
-                    borderColor: colors.border,
-                    textAlign: 'right',
-                  },
-                ]}
-                value={descriptionAr}
-                onChangeText={setDescriptionAr}
-                placeholder={t('settings:payment_method_description_ar_placeholder')}
-                placeholderTextColor={colors.textSecondary}
-                multiline
-                numberOfLines={3}
-              />
-            </View>
-          </View>
-        </View>
-
-        {/* Payment Instructions */}
-        {!method?.isBuiltIn && (
-          <View style={styles.section}>
-            <SectionHeader title={t('settings:payment_instructions')} icon="📋" />
-
-            <View style={[styles.card, { backgroundColor: colors.surface, ...design.shadow.sm }]}>
-              {/* English Instructions */}
-              <View style={styles.fieldContainer}>
-                <Text style={[styles.label, { color: colors.text }]}>
-                  {t('settings:instructions')} ({t('common:en')})
-                </Text>
-                <TextInput
-                  style={[
-                    styles.input,
-                    styles.textArea,
-                    {
-                      backgroundColor: colors.background,
-                      color: colors.text,
-                      borderColor: colors.border,
-                    },
-                  ]}
-                  value={instructions}
-                  onChangeText={setInstructions}
-                  placeholder={t('settings:payment_instructions_placeholder')}
-                  placeholderTextColor={colors.textSecondary}
-                  multiline
-                  numberOfLines={4}
+            <VStack
+                space="md"
+                bg="$surfaceLight"
+                $dark-bg="$surfaceDark"
+                borderRadius="$2xl"
+                p="$4"
+              >
+                {/* Dynamic Name Fields */}
+                <DynamicLanguageFields
+                  fieldName="name"
+                  formData={formData}
+                  setFormData={setFormData}
+                  placeholder={t('payment_method_name_placeholder')}
+                  disabled={method?.isBuiltIn}
                 />
-              </View>
 
-              {/* Arabic Instructions */}
-              <View style={styles.fieldContainer}>
-                <Text style={[styles.label, { color: colors.text }]}>
-                  {t('settings:instructions')} ({t('common:ar')})
-                </Text>
-                <TextInput
-                  style={[
-                    styles.input,
-                    styles.textArea,
-                    {
-                      backgroundColor: colors.background,
-                      color: colors.text,
-                      borderColor: colors.border,
-                      textAlign: 'right',
-                    },
-                  ]}
-                  value={instructionsAr}
-                  onChangeText={setInstructionsAr}
-                  placeholder={t('settings:payment_instructions_ar_placeholder')}
-                  placeholderTextColor={colors.textSecondary}
+                {/* Dynamic Description Fields */}
+                <DynamicLanguageFields
+                  fieldName="description"
+                  formData={formData}
+                  setFormData={setFormData}
+                  placeholder={t('payment_method_description_placeholder')}
                   multiline
-                  numberOfLines={4}
+                  minHeight={80}
                 />
-              </View>
-            </View>
-          </View>
-        )}
+              </VStack>
 
-        {/* Fees & Settings */}
-        <View style={styles.section}>
-          <SectionHeader title={t('settings:fees_and_settings')} icon="⚙️" />
+            {!method?.isBuiltIn && (
+              <VStack
+                  space="md"
+                  bg="$surfaceLight"
+                  $dark-bg="$surfaceDark"
+                  borderRadius="$2xl"
+                  p="$4"
+                >
+                  {/* Dynamic Instructions Fields */}
+                  <DynamicLanguageFields
+                    fieldName="instructions"
+                    formData={formData}
+                    setFormData={setFormData}
+                    placeholder={t('payment_instructions_placeholder')}
+                    multiline
+                    minHeight={100}
+                  />
+                </VStack>
+            )}
 
-          <View style={[styles.card, { backgroundColor: colors.surface, ...design.shadow.sm }]}>
-            {/* Processing Fee */}
-            <View style={styles.fieldContainer}>
-              <Text style={[styles.label, { color: colors.text }]}>
-                {t('settings:processing_fee')} (%)
-              </Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: colors.background,
-                    color: colors.text,
-                    borderColor: colors.border,
-                  },
-                ]}
-                value={processingFee}
-                onChangeText={setProcessingFee}
-                placeholder="0.00"
-                placeholderTextColor={colors.textSecondary}
-                keyboardType="decimal-pad"
-              />
-            </View>
+            <VStack
+                space="md"
+                bg="$surfaceLight"
+                $dark-bg="$surfaceDark"
+                borderRadius="$2xl"
+                p="$4"
+              >
+                {/* Processing Fee */}
+                <VStack space="xs">
+                  <Text
+                    fontSize="$sm"
+                    fontWeight="$medium"
+                    color="$textLight"
+                    $dark-color="$textDark"
+                    textAlign={isRTL ? 'right' : 'left'}
+                  >
+                    {t('processing_fee')} (%)
+                  </Text>
+                  <Input
+                    borderRadius="$xl"
+                    borderColor="$borderLight"
+                    $dark-borderColor="$borderDark"
+                    bg="$backgroundLight"
+                    $dark-bg="$backgroundDark"
+                  >
+                    <InputField
+                      value={processingFee}
+                      onChangeText={setProcessingFee}
+                      placeholder="0.00"
+                      keyboardType="decimal-pad"
+                      color="$textLight"
+                      $dark-color="$textDark"
+                      textAlign={isRTL ? 'right' : 'left'}
+                    />
+                  </Input>
+                </VStack>
 
-            {/* Active Switch */}
-            <View style={styles.switchContainer}>
-              <View style={styles.switchInfo}>
-                <Text style={[styles.switchLabel, { color: colors.text }]}>
-                  {t('settings:active')}
-                </Text>
-                <Text style={[styles.switchDescription, { color: colors.textSecondary }]}>
-                  {t('settings:active_payment_description')}
-                </Text>
-              </View>
-              <Switch
-                value={isActive}
-                onValueChange={setIsActive}
-                trackColor={{ false: colors.border, true: colors.primary + '60' }}
-                thumbColor={isActive ? colors.primary : colors.textSecondary}
-              />
-            </View>
-          </View>
-        </View>
+                {/* Active Switch */}
+                <HStack
+                  alignItems="center"
+                  justifyContent="space-between"
+                  flexDirection={isRTL ? 'row-reverse' : 'row'}
+                >
+                  <VStack flex={1}>
+                    <Text
+                      fontSize="$md"
+                      fontWeight="$semibold"
+                      color="$textLight"
+                      $dark-color="$textDark"
+                      textAlign={isRTL ? 'right' : 'left'}
+                    >
+                      {t('active')}
+                    </Text>
+                    <Text
+                      fontSize="$sm"
+                      color="$textSecondaryLight"
+                      $dark-color="$textSecondaryDark"
+                      textAlign={isRTL ? 'right' : 'left'}
+                    >
+                      {t('active_payment_description')}
+                    </Text>
+                  </VStack>
+                  <Switch
+                    value={isActive}
+                    onValueChange={(value) => {
+                      haptics.light();
+                      setIsActive(value);
+                    }}
+                    trackColor={{
+                      false: isDark ? 'rgba(255, 255, 255, 0.1)' : '#E5E5EA',
+                      true: colors.primary,
+                    }}
+                    thumbColor="#FFFFFF"
+                    ios_backgroundColor={isDark ? 'rgba(255, 255, 255, 0.1)' : '#E5E5EA'}
+                  />
+                </HStack>
+              </VStack>
 
-        {/* Save Button */}
-        <TouchableOpacity
-          style={[
-            styles.saveButton,
-            { backgroundColor: colors.primary, ...design.shadow.md },
-            loading && styles.saveButtonDisabled,
-          ]}
-          onPress={handleSave}
-          disabled={loading}
-          activeOpacity={0.8}
-        >
-          {loading ? (
-            <ActivityIndicator size="small" color="#FFFFFF" />
-          ) : (
-            <Text style={styles.saveButtonText}>{t('common:save')}</Text>
-          )}
-        </TouchableOpacity>
+            {/* Save Button */}
+            <Button
+              size="lg"
+              bg="$primary500"
+              borderRadius="$2xl"
+              onPress={handleSave}
+              isDisabled={loading}
+              mt="$4"
+            >
+              {loading ? (
+                <Spinner color="#FFFFFF" />
+              ) : (
+                <HStack space="sm" alignItems="center">
+                  <Save size={20} color="#FFFFFF" strokeWidth={2.5} />
+                  <ButtonText fontSize="$md" fontWeight="$bold" color="$white">
+                    {t('save_changes')}
+                  </ButtonText>
+                </HStack>
+              )}
+            </Button>
+          </VStack>
+        </Box>
       </ScrollView>
-    </View>
+    </Box>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: spacing.m,
-    paddingBottom: spacing.xl * 2,
-  },
-  centerContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
-  // Built-in Notice
-  builtInNotice: {
-    padding: spacing.m,
-    borderRadius: design.radius.md,
-    marginBottom: spacing.l,
-  },
-  builtInNoticeText: {
-    ...design.typography.body,
-    textAlign: 'center',
-  },
-
-  // Section
-  section: {
-    marginBottom: spacing.l,
-  },
-  card: {
-    borderRadius: design.radius.md,
-    padding: spacing.m,
-  },
-
-  // Form Fields
-  fieldContainer: {
-    marginBottom: spacing.m,
-  },
-  label: {
-    ...design.typography.bodyBold,
-    marginBottom: spacing.s,
-  },
-  input: {
-    ...design.typography.body,
-    borderWidth: 1,
-    borderRadius: design.radius.sm,
-    padding: spacing.m,
-  },
-  inputDisabled: {
-    opacity: 0.6,
-  },
-  textArea: {
-    minHeight: 80,
-    textAlignVertical: 'top',
-  },
-
-  // Switch
-  switchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: spacing.s,
-  },
-  switchInfo: {
-    flex: 1,
-    marginRight: spacing.m,
-  },
-  switchLabel: {
-    ...design.typography.bodyBold,
-    marginBottom: 4,
-  },
-  switchDescription: {
-    ...design.typography.caption,
-  },
-
-  // Save Button
-  saveButton: {
-    padding: spacing.l,
-    borderRadius: design.radius.md,
-    alignItems: 'center',
-    marginTop: spacing.l,
-  },
-  saveButtonDisabled: {
-    opacity: 0.6,
-  },
-  saveButtonText: {
-    ...design.typography.bodyBold,
-    color: '#FFFFFF',
-  },
-});

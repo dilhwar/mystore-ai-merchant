@@ -1,110 +1,168 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { ScrollView } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/store/themeStore';
 import { useRouter } from 'expo-router';
-import { PageHeader } from '@/components/ui/PageHeader';
-import { spacing } from '@/theme/spacing';
+import { haptics } from '@/utils/haptics';
+import {
+  Box,
+  HStack,
+  VStack,
+  Heading,
+  Text,
+  Pressable,
+} from '@gluestack-ui/themed';
+import {
+  Truck,
+  CreditCard,
+  FileText,
+  MessageCircle,
+  ChevronRight,
+} from 'lucide-react-native';
 
 export default function OrderSettingsScreen() {
-  const { t } = useTranslation(['settings', 'common']);
-  const { colors } = useTheme();
+  const { t, i18n } = useTranslation('settings');
+  const { colors, isDark } = useTheme();
   const router = useRouter();
+  const isRTL = i18n.language === 'ar';
 
   const orderSettingsSections = [
     {
       id: 'shipping',
-      title: t('settings:shipping_methods'),
-      icon: '🚚',
+      title: t('shipping_methods'),
+      description: t('shipping_methods_brief'),
+      icon: Truck,
       route: '/settings/order-settings/shipping',
+      iconColor: '$blue500',
+      iconBg: '$blue50',
+      iconBgDark: 'rgba(59, 130, 246, 0.15)',
     },
     {
       id: 'payment',
-      title: t('settings:payment_methods'),
-      icon: '💳',
+      title: t('payment_methods'),
+      description: t('payment_methods_brief'),
+      icon: CreditCard,
       route: '/settings/order-settings/payment-methods',
+      iconColor: '$green500',
+      iconBg: '$green50',
+      iconBgDark: 'rgba(34, 197, 94, 0.15)',
     },
     {
       id: 'form-fields',
-      title: t('settings:form_fields'),
-      icon: '📝',
+      title: t('form_fields'),
+      description: t('form_fields_brief'),
+      icon: FileText,
       route: '/settings/order-settings/form-fields',
+      iconColor: '$purple500',
+      iconBg: '$purple50',
+      iconBgDark: 'rgba(139, 92, 246, 0.15)',
     },
     {
       id: 'whatsapp',
-      title: t('settings:whatsapp_settings'),
-      icon: '💬',
+      title: t('whatsapp_settings'),
+      description: t('whatsapp_settings_brief'),
+      icon: MessageCircle,
       route: '/settings/order-settings/whatsapp',
+      iconColor: '$amber500',
+      iconBg: '$amber50',
+      iconBgDark: 'rgba(245, 158, 11, 0.15)',
     },
   ];
 
-  return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <PageHeader title={t('settings:order_settings')} />
+  const handlePress = (route: string) => {
+    haptics.light();
+    router.push(route as any);
+  };
 
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        {/* Settings Sections */}
-        <View style={styles.sectionsContainer}>
-          {orderSettingsSections.map((section) => (
-            <TouchableOpacity
-              key={section.id}
-              style={[styles.sectionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
-              onPress={() => router.push(section.route as any)}
-              activeOpacity={0.7}
-            >
-              <View style={[styles.sectionIconContainer, { backgroundColor: colors.primary + '10' }]}>
-                <Text style={styles.sectionIcon}>{section.icon}</Text>
-              </View>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>
-                {section.title}
-              </Text>
-              <Text style={[styles.sectionArrow, { color: colors.textSecondary }]}>›</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+  return (
+    <Box flex={1} bg="$backgroundLight" $dark-bg="$backgroundDark">
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingTop: 60, paddingBottom: 100 }}
+      >
+        <Box px="$4">
+          <VStack space="md">
+            {orderSettingsSections.map((section, index) => {
+              const Icon = section.icon;
+              return (
+                <Pressable
+                  key={section.id}
+                  onPress={() => handlePress(section.route)}
+                  bg="$surfaceLight"
+                  $dark-bg="$surfaceDark"
+                  borderRadius="$2xl"
+                  overflow="hidden"
+                  $hover-bg="$backgroundHoverLight"
+                  $dark-hover-bg="$backgroundHoverDark"
+                  $active-opacity={0.8}
+                >
+                  <HStack
+                    px="$4"
+                    py="$4"
+                    alignItems="center"
+                    space="md"
+                    flexDirection={isRTL ? 'row-reverse' : 'row'}
+                  >
+                    {/* Icon */}
+                    <Box
+                      w={56}
+                      h={56}
+                      borderRadius="$xl"
+                      bg={isDark ? undefined : section.iconBg}
+                      alignItems="center"
+                      justifyContent="center"
+                      style={
+                        isDark
+                          ? {
+                              backgroundColor: section.iconBgDark,
+                            }
+                          : undefined
+                      }
+                    >
+                      <Icon
+                        size={28}
+                        color={colors[section.iconColor?.replace('$', '') as keyof typeof colors] || colors.primary}
+                        strokeWidth={2}
+                      />
+                    </Box>
+
+                    {/* Text Content */}
+                    <VStack flex={1} space="xs">
+                      <Text
+                        fontSize="$md"
+                        fontWeight="$semibold"
+                        color="$textLight"
+                        $dark-color="$textDark"
+                        textAlign={isRTL ? 'right' : 'left'}
+                      >
+                        {section.title}
+                      </Text>
+                      <Text
+                        fontSize="$xs"
+                        color="$textSecondaryLight"
+                        $dark-color="$textSecondaryDark"
+                        textAlign={isRTL ? 'right' : 'left'}
+                        numberOfLines={1}
+                      >
+                        {section.description}
+                      </Text>
+                    </VStack>
+
+                    {/* Chevron */}
+                    <ChevronRight
+                      size={22}
+                      color={colors.textSecondary}
+                      style={{
+                        transform: [{ scaleX: isRTL ? -1 : 1 }],
+                      }}
+                    />
+                  </HStack>
+                </Pressable>
+              );
+            })}
+          </VStack>
+        </Box>
       </ScrollView>
-    </View>
+    </Box>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: spacing.m,
-  },
-  sectionsContainer: {
-    gap: spacing.s,
-  },
-  sectionCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: spacing.m,
-    borderRadius: 12,
-    borderWidth: 1,
-  },
-  sectionIconContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: spacing.m,
-  },
-  sectionIcon: {
-    fontSize: 22,
-  },
-  sectionTitle: {
-    flex: 1,
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  sectionArrow: {
-    fontSize: 24,
-    marginLeft: spacing.s,
-  },
-});

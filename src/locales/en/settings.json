@@ -33,6 +33,7 @@
 
   "shipping_methods": "Shipping Methods",
   "shipping_methods_description": "Manage shipping zones and delivery rates",
+  "shipping_methods_brief": "Manage delivery options",
   "add_shipping_method": "Add Shipping Method",
   "no_shipping_methods": "No shipping methods yet",
   "add_shipping_methods_hint": "Add shipping methods to enable delivery options for your customers",
@@ -49,9 +50,13 @@
   "shipping_method_name_placeholder": "e.g., Standard Shipping",
   "shipping_method_name_ar_placeholder": "مثال: شحن عادي",
   "cost_invalid": "Cost must be a valid positive number",
-  "estimated_days": "Estimated Delivery Days",
-  "days_placeholder": "e.g., 3-5",
-  "days_invalid": "Days must be a valid positive number",
+  "delivery_time_unit": "Delivery Time Unit",
+  "hours": "Hours",
+  "estimated_delivery_time": "Estimated Delivery Time",
+  "example_hours": "Example: 1-3 hours",
+  "example_days": "Example: 1-2 days",
+  "time_invalid": "Time must be a valid positive number",
+  "min_greater_than_max": "Minimum time cannot be greater than maximum time",
   "shipping_zone": "Shipping Zone",
   "load_zones_error": "Failed to load shipping zones",
   "no_zones_available": "No shipping zones available",
@@ -63,6 +68,7 @@
 
   "payment_methods": "Payment Methods",
   "payment_methods_description": "Configure payment options for checkout",
+  "payment_methods_brief": "Setup payment options",
   "add_payment_method": "Add Payment Method",
   "no_payment_methods": "No payment methods available",
   "add_payment_methods_hint": "Add payment methods to enable checkout options for your customers",
@@ -91,14 +97,15 @@
   "payment_method_updated": "Payment method updated successfully",
 
   "form_fields": "Form Fields",
-  "form_fields_description": "Customize checkout form fields",
   "form_fields_description": "Manage which fields are displayed and required during checkout.",
+  "form_fields_brief": "Customize checkout fields",
   "no_form_fields": "No form fields configured",
   "form_field_updated": "Form field updated successfully",
   "required": "Required",
 
   "whatsapp_settings": "WhatsApp Settings",
   "whatsapp_settings_description": "Configure WhatsApp notifications",
+  "whatsapp_settings_brief": "Setup order notifications",
   "whatsapp_info_title": "Twilio WhatsApp Setup",
   "whatsapp_info_description": "Configure Twilio credentials to enable WhatsApp notifications for order updates.",
   "account_sid": "Account SID",
@@ -212,5 +219,8 @@
   "whatsapp_language": "WhatsApp Language",
   "whatsapp_language_description": "Language for WhatsApp notifications",
   "loading": "Loading...",
-  "settings_saved_successfully": "Settings saved successfully"
+  "settings_saved_successfully": "Settings saved successfully",
+  "store_status": "Store Status",
+  "published": "Published",
+  "draft": "Draft"
 }
