@@ -140,14 +140,54 @@ export const deleteShippingZone = async (zoneId: string): Promise<void> => {
 // ========================================
 
 /**
- * Get all shipping rates
+ * Get all shipping rates from StoreSettings
  */
 export const getShippingRates = async (): Promise<ShippingRate[]> => {
   try {
-    const response = await apiGet<ShippingRate[]>('/shipping/rates');
-    return response.data;
+    console.log('🔍 [getShippingRates] Fetching shipping rates from /settings...');
+    const response = await apiGet<{ success: boolean; data: any }>('/settings');
+
+    // Extract shippingMethods from StoreSettings
+    const shippingMethods = response.data.data?.shippingMethods;
+
+    if (!shippingMethods) {
+      console.log('✅ [getShippingRates] No shipping methods found');
+      return [];
+    }
+
+    // Parse if it's a string
+    const methods = typeof shippingMethods === 'string'
+      ? JSON.parse(shippingMethods)
+      : shippingMethods;
+
+    // Convert to ShippingRate format
+    const rates: ShippingRate[] = Array.isArray(methods) ? methods.map((method: any) => ({
+      id: method.id || String(Date.now()),
+      zoneId: '',
+      name: method.name || '',
+      nameAr: method.nameAr || '',
+      type: 'FLAT_RATE',
+      cost: method.cost || 0,
+      minOrderAmount: null,
+      maxOrderAmount: null,
+      minWeight: null,
+      maxWeight: null,
+      estimatedDays: method.estimatedDays ? Number(method.estimatedDays) : null,
+      estimatedDeliveryTime: method.estimatedDays?.toString() || null,
+      isActive: method.enabled !== false,
+      settings: {
+        timeUnit: method.estimatedTimeUnit || 'days',
+      },
+      translations: {},
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    })) : [];
+
+    console.log('✅ [getShippingRates] Got', rates.length, 'shipping rates');
+    console.log('Data:', JSON.stringify(rates, null, 2));
+    return rates;
   } catch (error: any) {
-    console.error('Get shipping rates error:', error.message);
+    console.error('❌ [getShippingRates] Error:', error.message);
     throw error;
   }
 };
@@ -166,45 +206,173 @@ export const getShippingRate = async (rateId: string): Promise<ShippingRate> => 
 };
 
 /**
- * Create a new shipping rate
+ * Create a new shipping rate in StoreSettings
  */
 export const createShippingRate = async (data: CreateShippingRateData): Promise<ShippingRate> => {
   try {
-    const response = await apiPost<{ success: boolean; data: ShippingRate }>('/shipping/rates', data);
-    return response.data.data;
+    console.log('📤 [createShippingRate] Sending data:', JSON.stringify(data, null, 2));
+
+    // First, get current settings to retrieve existing shipping methods
+    const settingsResponse = await apiGet<{ success: boolean; data: any }>('/settings');
+    const currentMethods = settingsResponse.data.data?.shippingMethods;
+
+    // Parse existing methods
+    const existingMethods = currentMethods
+      ? (typeof currentMethods === 'string' ? JSON.parse(currentMethods) : currentMethods)
+      : [];
+
+    // Create new method in StoreSettings format
+    const newMethod = {
+      id: String(Date.now()),
+      name: data.name,
+      nameAr: data.nameAr || '',
+      cost: data.cost,
+      estimatedDays: data.estimatedDeliveryTime || '',
+      estimatedTimeUnit: data.settings?.timeUnit || 'days',
+      enabled: data.isActive !== false,
+      description: '',
+      descriptionAr: '',
+    };
+
+    // Add to existing methods
+    const updatedMethods = [...existingMethods, newMethod];
+
+    // Update settings with new shipping methods
+    console.log('📝 [createShippingRate] Updating settings with:', JSON.stringify(updatedMethods, null, 2));
+    const updateResponse = await apiPut('/settings', {
+      shippingMethods: JSON.stringify(updatedMethods),
+    });
+
+    console.log('✅ [createShippingRate] Success! Update response:', JSON.stringify(updateResponse, null, 2));
+
+    // Return in ShippingRate format
+    return {
+      id: newMethod.id,
+      zoneId: '',
+      name: newMethod.name,
+      nameAr: newMethod.nameAr,
+      type: 'FLAT_RATE',
+      cost: newMethod.cost,
+      minOrderAmount: null,
+      maxOrderAmount: null,
+      minWeight: null,
+      maxWeight: null,
+      estimatedDays: newMethod.estimatedDays ? Number(newMethod.estimatedDays) : null,
+      estimatedDeliveryTime: newMethod.estimatedDays,
+      isActive: newMethod.enabled,
+      settings: {
+        timeUnit: newMethod.estimatedTimeUnit as 'hours' | 'days',
+      },
+      translations: {},
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
   } catch (error: any) {
-    console.error('Create shipping rate error:', error.message);
+    console.error('❌ [createShippingRate] Error:', error.message);
+    console.error('Full error:', error);
     throw error;
   }
 };
 
 /**
- * Update a shipping rate
+ * Update a shipping rate in StoreSettings
  */
 export const updateShippingRate = async (
   rateId: string,
   data: Partial<CreateShippingRateData>
 ): Promise<ShippingRate> => {
   try {
-    const response = await apiPut<{ success: boolean; data: ShippingRate }>(
-      `/shipping/rates/${rateId}`,
-      data
-    );
-    return response.data.data;
+    console.log('📝 [updateShippingRate] Updating rate:', rateId);
+
+    // Get current settings
+    const settingsResponse = await apiGet<{ success: boolean; data: any }>('/settings');
+    const currentMethods = settingsResponse.data.data?.shippingMethods;
+
+    // Parse existing methods
+    const existingMethods = currentMethods
+      ? (typeof currentMethods === 'string' ? JSON.parse(currentMethods) : currentMethods)
+      : [];
+
+    // Find and update the method
+    const updatedMethods = existingMethods.map((method: any) => {
+      if (method.id === rateId) {
+        return {
+          ...method,
+          name: data.name !== undefined ? data.name : method.name,
+          nameAr: data.nameAr !== undefined ? data.nameAr : method.nameAr,
+          cost: data.cost !== undefined ? data.cost : method.cost,
+          estimatedDays: data.estimatedDeliveryTime !== undefined ? data.estimatedDeliveryTime : method.estimatedDays,
+          estimatedTimeUnit: data.settings?.timeUnit || method.estimatedTimeUnit || 'days',
+          enabled: data.isActive !== undefined ? data.isActive : method.enabled,
+        };
+      }
+      return method;
+    });
+
+    // Update settings
+    await apiPut('/settings', {
+      shippingMethods: JSON.stringify(updatedMethods),
+    });
+
+    console.log('✅ [updateShippingRate] Success!');
+
+    // Find updated method and return it
+    const updatedMethod = updatedMethods.find((m: any) => m.id === rateId);
+
+    return {
+      id: updatedMethod.id,
+      zoneId: '',
+      name: updatedMethod.name,
+      nameAr: updatedMethod.nameAr,
+      type: 'FLAT_RATE',
+      cost: updatedMethod.cost,
+      minOrderAmount: null,
+      maxOrderAmount: null,
+      minWeight: null,
+      maxWeight: null,
+      estimatedDays: updatedMethod.estimatedDays ? Number(updatedMethod.estimatedDays) : null,
+      estimatedDeliveryTime: updatedMethod.estimatedDays,
+      isActive: updatedMethod.enabled,
+      settings: {
+        timeUnit: updatedMethod.estimatedTimeUnit as 'hours' | 'days',
+      },
+      translations: {},
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
   } catch (error: any) {
-    console.error('Update shipping rate error:', error.message);
+    console.error('❌ [updateShippingRate] Error:', error.message);
     throw error;
   }
 };
 
 /**
- * Delete a shipping rate
+ * Delete a shipping rate from StoreSettings
  */
 export const deleteShippingRate = async (rateId: string): Promise<void> => {
   try {
-    await apiDelete(`/shipping/rates/${rateId}`);
+    console.log('🗑️ [deleteShippingRate] Deleting rate:', rateId);
+
+    // Get current settings
+    const settingsResponse = await apiGet<{ success: boolean; data: any }>('/settings');
+    const currentMethods = settingsResponse.data.data?.shippingMethods;
+
+    // Parse existing methods
+    const existingMethods = currentMethods
+      ? (typeof currentMethods === 'string' ? JSON.parse(currentMethods) : currentMethods)
+      : [];
+
+    // Filter out the deleted method
+    const updatedMethods = existingMethods.filter((method: any) => method.id !== rateId);
+
+    // Update settings
+    await apiPut('/settings', {
+      shippingMethods: JSON.stringify(updatedMethods),
+    });
+
+    console.log('✅ [deleteShippingRate] Success!');
   } catch (error: any) {
-    console.error('Delete shipping rate error:', error.message);
+    console.error('❌ [deleteShippingRate] Error:', error.message);
     throw error;
   }
 };

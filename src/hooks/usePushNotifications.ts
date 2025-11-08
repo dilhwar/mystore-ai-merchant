@@ -105,17 +105,14 @@ async function registerForPushNotificationsAsync(): Promise<string | undefined> 
     try {
       // Try to get native device token (works in Expo Go)
       const deviceToken = await Notifications.getDevicePushTokenAsync();
-      console.log('Device Push Token:', deviceToken);
 
       // For development, use device token format
       // For production with standalone builds, use Expo Push Token
       try {
         const tokenData = await Notifications.getExpoPushTokenAsync();
         token = tokenData.data;
-        console.log('✅ Expo Push Token:', token);
       } catch (expoError: any) {
         // Fallback: use device token for Expo Go
-        console.log('⚠️  Using device token (Expo Go mode)');
         token = `ExponentPushToken[${deviceToken.data}]`;
       }
     } catch (error: any) {

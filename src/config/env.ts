@@ -12,12 +12,12 @@ const ENV = {
     APP_ENV: 'development',
   },
   staging: {
-    API_URL: 'http://164.90.226.98:8000/api/v1',
+    API_URL: 'https://api.my-store.ai/api/v1',
     API_TIMEOUT: 15000,
     APP_ENV: 'staging',
   },
   prod: {
-    API_URL: 'http://164.90.226.98:8000/api/v1',
+    API_URL: 'https://api.my-store.ai/api/v1',
     API_TIMEOUT: 15000,
     APP_ENV: 'production',
   },

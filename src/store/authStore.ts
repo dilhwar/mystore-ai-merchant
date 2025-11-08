@@ -274,7 +274,6 @@ export const useAuthStore = create<AuthState>()(
               }
             } catch (error) {
               // Silently ignore - user data will be populated on next login
-              console.log('User data fetch skipped - will be populated on next login');
             }
           } else {
             set({

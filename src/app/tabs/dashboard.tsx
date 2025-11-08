@@ -95,10 +95,6 @@ export default function DashboardV2Screen() {
 
       setStats(statsData);
       if (storeData) {
-        console.log('📊 Store Data:', storeData);
-        console.log('🏪 Store Name (EN):', storeData.name);
-        console.log('🏪 Store Name (AR):', storeData.nameAr);
-        console.log('🏷️ Store StoreName:', storeData.storeName);
         setStore(storeData);
       }
 

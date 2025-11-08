@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { ScrollView, Alert, RefreshControl } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/store/themeStore';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { haptics } from '@/utils/haptics';
 import {
   Box,
@@ -68,9 +68,17 @@ export default function ShippingMethodsScreen() {
     }
   }, [t]);
 
+  // Load data on mount
   useEffect(() => {
     loadShippingRates();
   }, [loadShippingRates]);
+
+  // Reload data when screen comes into focus (e.g., after adding a new shipping method)
+  useFocusEffect(
+    useCallback(() => {
+      loadShippingRates();
+    }, [loadShippingRates])
+  );
 
   // Delete shipping rate
   const handleDelete = (rateId: string, rateName: string) => {

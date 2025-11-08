@@ -28,8 +28,6 @@ import {
 } from 'lucide-react-native';
 import {
   createShippingRate,
-  getShippingZones,
-  ShippingZone,
 } from '@/services/shipping.service';
 
 export default function AddShippingMethodScreen() {
@@ -39,8 +37,6 @@ export default function AddShippingMethodScreen() {
   const isRTL = i18n.language === 'ar';
 
   const [loading, setLoading] = useState(false);
-  const [zones, setZones] = useState<ShippingZone[]>([]);
-  const [loadingZones, setLoadingZones] = useState(true);
 
   // Use dynamic form hook for language fields
   const { formData, setFormData, buildPayload, validateRequiredFields } = useDynamicForm(['name']);
@@ -50,43 +46,8 @@ export default function AddShippingMethodScreen() {
   const [maxTime, setMaxTime] = useState('');
   const [timeUnit, setTimeUnit] = useState<'hours' | 'days'>('days');
   const [isActive, setIsActive] = useState(true);
-  const [selectedZoneId, setSelectedZoneId] = useState<string>('');
 
   const currentLanguage = i18n.language;
-
-  // Load shipping zones
-  useEffect(() => {
-    loadZones();
-  }, []);
-
-  const loadZones = async () => {
-    try {
-      setLoadingZones(true);
-      const zonesData = await getShippingZones();
-      setZones(zonesData);
-
-      // Auto-select first zone if available
-      if (zonesData.length > 0 && !selectedZoneId) {
-        setSelectedZoneId(zonesData[0].id);
-      } else if (zonesData.length === 0) {
-        // Show message that zones are required
-        Alert.alert(
-          t('error'),
-          'No shipping zones found. Please create a shipping zone first.',
-          [
-            {
-              text: t('ok'),
-              onPress: () => router.back(),
-            },
-          ]
-        );
-      }
-    } catch (error: any) {
-      Alert.alert(t('error'), error.message || t('load_zones_error'));
-    } finally {
-      setLoadingZones(false);
-    }
-  };
 
   // Validate form
   const validateForm = (): boolean => {
@@ -136,19 +97,12 @@ export default function AddShippingMethodScreen() {
         estimatedTime = maxTime;
       }
 
-      // Ensure we have a zoneId (required field)
-      if (!selectedZoneId) {
-        Alert.alert(t('error'), 'Please select a shipping zone');
-        return;
-      }
-
       const data: any = {
         ...buildPayload(),
         type: 'FLAT_RATE', // Default type
         cost: Number(cost),
         estimatedDeliveryTime: estimatedTime || undefined,
         isActive,
-        zoneId: selectedZoneId,
       };
 
       // Add settings with timeUnit (keep translations separate)
@@ -175,11 +129,6 @@ export default function AddShippingMethodScreen() {
     } finally {
       setLoading(false);
     }
-  };
-
-  // Get zone label
-  const getZoneLabel = (zone: ShippingZone): string => {
-    return currentLanguage === 'ar' && zone.nameAr ? zone.nameAr : zone.name;
   };
 
   return (
