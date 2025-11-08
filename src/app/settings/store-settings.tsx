@@ -47,7 +47,16 @@ const CURRENCIES = [
   { code: 'IQD', name: 'Iraqi Dinar', symbol: 'د.ع', nameAr: 'دينار عراقي' },
 ];
 
-// Language options
+// Language options (all supported languages)
+const ALL_LANGUAGES = [
+  { code: 'en', name: 'English', nameAr: 'الإنجليزية', flag: '🇺🇸' },
+  { code: 'ar', name: 'Arabic', nameAr: 'العربية', flag: '🇸🇦' },
+  { code: 'hi', name: 'Hindi', nameAr: 'الهندية', flag: '🇮🇳' },
+  { code: 'es', name: 'Spanish', nameAr: 'الإسبانية', flag: '🇪🇸' },
+  { code: 'fr', name: 'French', nameAr: 'الفرنسية', flag: '🇫🇷' },
+];
+
+// Language options for default language (only 2: en, ar)
 const LANGUAGES = [
   { code: 'en', name: 'English', nameAr: 'الإنجليزية' },
   { code: 'ar', name: 'Arabic', nameAr: 'العربية' },
@@ -90,6 +99,7 @@ interface StoreWithSettings {
 interface UpdateStoreSettingsData {
   currency?: string;
   language?: string;
+  languages?: string[];
   defaultCountryCode?: string;
   whatsappLanguage?: string;
 }
@@ -109,12 +119,14 @@ export default function StoreSettingsScreen() {
   // Regional settings state
   const [currency, setCurrency] = useState('SAR');
   const [defaultLanguage, setDefaultLanguage] = useState('ar');
+  const [supportedLanguages, setSupportedLanguages] = useState<string[]>(['en', 'ar']);
   const [defaultCountryCode, setDefaultCountryCode] = useState('+966');
   const [whatsappLanguage, setWhatsappLanguage] = useState('ar');
 
   // Modal states
   const [currencyModalVisible, setCurrencyModalVisible] = useState(false);
   const [languageModalVisible, setLanguageModalVisible] = useState(false);
+  const [supportedLanguagesModalVisible, setSupportedLanguagesModalVisible] = useState(false);
   const [countryCodeModalVisible, setCountryCodeModalVisible] = useState(false);
   const [whatsappLanguageModalVisible, setWhatsappLanguageModalVisible] = useState(false);
 
@@ -126,6 +138,7 @@ export default function StoreSettingsScreen() {
   const [originalSettings, setOriginalSettings] = useState({
     currency: 'SAR',
     defaultLanguage: 'ar',
+    supportedLanguages: ['en', 'ar'],
     defaultCountryCode: '+966',
     whatsappLanguage: 'ar',
   });
@@ -136,14 +149,17 @@ export default function StoreSettingsScreen() {
 
   // Check if settings have changed
   useEffect(() => {
+    const languagesChanged = JSON.stringify(supportedLanguages.sort()) !== JSON.stringify(originalSettings.supportedLanguages.sort());
+
     const changed =
       currency !== originalSettings.currency ||
       defaultLanguage !== originalSettings.defaultLanguage ||
+      languagesChanged ||
       defaultCountryCode !== originalSettings.defaultCountryCode ||
       whatsappLanguage !== originalSettings.whatsappLanguage;
 
     setHasChanges(changed);
-  }, [currency, defaultLanguage, defaultCountryCode, whatsappLanguage, originalSettings]);
+  }, [currency, defaultLanguage, supportedLanguages, defaultCountryCode, whatsappLanguage, originalSettings]);
 
   const loadStoreSettings = async (isRefresh = false) => {
     try {
@@ -167,15 +183,27 @@ export default function StoreSettingsScreen() {
       setStoreId(storeData.id);
 
       if (storeData.settings) {
+        // Parse languages array (might be JSON string or actual array)
+        let languages = storeData.settings.languages || ['en', 'ar'];
+        if (typeof languages === 'string') {
+          try {
+            languages = JSON.parse(languages);
+          } catch (e) {
+            languages = ['en', 'ar'];
+          }
+        }
+
         const loadedSettings = {
           currency: storeData.settings.currency || 'SAR',
           defaultLanguage: storeData.settings.language || 'ar',
+          supportedLanguages: languages,
           defaultCountryCode: storeData.settings.defaultCountryCode || '+966',
           whatsappLanguage: storeData.settings.whatsappLanguage || 'ar',
         };
 
         setCurrency(loadedSettings.currency);
         setDefaultLanguage(loadedSettings.defaultLanguage);
+        setSupportedLanguages(loadedSettings.supportedLanguages);
         setDefaultCountryCode(loadedSettings.defaultCountryCode);
         setWhatsappLanguage(loadedSettings.whatsappLanguage);
 
@@ -197,12 +225,23 @@ export default function StoreSettingsScreen() {
 
   const handleSave = async () => {
     try {
+      // Validation: at least one language must be selected
+      if (supportedLanguages.length === 0) {
+        haptics.error();
+        Alert.alert(
+          currentLanguage === 'ar' ? 'خطأ' : 'Error',
+          currentLanguage === 'ar' ? 'يجب اختيار لغة واحدة على الأقل' : 'Please select at least one language'
+        );
+        return;
+      }
+
       setSaving(true);
       haptics.light();
 
       const updates: UpdateStoreSettingsData = {
         currency,
         language: defaultLanguage,
+        languages: supportedLanguages,
         defaultCountryCode,
         whatsappLanguage,
       };
@@ -212,6 +251,9 @@ export default function StoreSettingsScreen() {
 
       haptics.success();
       Alert.alert(t('success'), t('settings_saved_successfully'));
+
+      // Reload settings to update originalSettings
+      await loadStoreSettings();
     } catch (error: any) {
       haptics.error();
       Alert.alert(t('error'), error.message || t('failed_to_save_settings'));
@@ -239,6 +281,41 @@ export default function StoreSettingsScreen() {
     const country = COUNTRY_CODES.find(c => c.code === code);
     if (!country) return code;
     return currentLanguage === 'ar' ? `${country.countryAr} (${country.code})` : `${country.country} (${country.code})`;
+  };
+
+  // Helper function to get supported languages label
+  const getSupportedLanguagesLabel = () => {
+    if (supportedLanguages.length === 0) {
+      return currentLanguage === 'ar' ? 'اختر اللغات' : 'Select Languages';
+    }
+    const labels = supportedLanguages.map(code => {
+      const lang = ALL_LANGUAGES.find(l => l.code === code);
+      return lang ? (currentLanguage === 'ar' ? lang.nameAr : lang.name) : code;
+    });
+    return labels.join(', ');
+  };
+
+  // Toggle language selection (max 2)
+  const handleToggleLanguage = (code: string) => {
+    setSupportedLanguages(prev => {
+      if (prev.includes(code)) {
+        // Remove if already selected
+        return prev.filter(l => l !== code);
+      } else {
+        // Add if less than 2 selected
+        if (prev.length < 2) {
+          return [...prev, code];
+        } else {
+          // Replace the first one with the new selection
+          haptics.warning();
+          Alert.alert(
+            currentLanguage === 'ar' ? 'الحد الأقصى للغات' : 'Maximum Languages',
+            currentLanguage === 'ar' ? 'يمكنك اختيار لغتين كحد أقصى' : 'You can select up to 2 languages'
+          );
+          return prev;
+        }
+      }
+    });
   };
 
   // Render picker modal with smart filtering
@@ -632,6 +709,53 @@ export default function StoreSettingsScreen() {
               </VStack>
             </Box>
 
+            {/* Supported Languages */}
+            <Box bg="$surfaceLight" $dark-bg="$surfaceDark" borderRadius="$2xl" p="$4">
+              <VStack space="md">
+                <HStack alignItems="center" space="md" flexDirection={isRTL ? 'row-reverse' : 'row'}>
+                  <Box
+                    w={48}
+                    h={48}
+                    borderRadius="$xl"
+                    alignItems="center"
+                    justifyContent="center"
+                    style={{ backgroundColor: isDark ? 'rgba(16, 185, 129, 0.2)' : 'rgba(16, 185, 129, 0.1)' }}
+                  >
+                    <Languages size={24} color="#10b981" strokeWidth={2.5} />
+                  </Box>
+                  <VStack flex={1}>
+                    <Text fontSize="$md" fontWeight="$semibold" color="$textLight" $dark-color="$textDark" textAlign={isRTL ? 'right' : 'left'}>
+                      {currentLanguage === 'ar' ? 'اللغات المدعومة' : 'Supported Languages'}
+                    </Text>
+                    <Text fontSize="$xs" color="$textSecondaryLight" $dark-color="$textSecondaryDark" textAlign={isRTL ? 'right' : 'left'}>
+                      {currentLanguage === 'ar' ? 'اختر حتى لغتين لمتجرك (الحد الأقصى: 2)' : 'Select up to 2 languages for your store (Max: 2)'}
+                    </Text>
+                  </VStack>
+                </HStack>
+                <Pressable
+                  onPress={() => {
+                    haptics.light();
+                    setSupportedLanguagesModalVisible(true);
+                  }}
+                  borderRadius="$xl"
+                  borderWidth={1}
+                  borderColor="$borderLight"
+                  $dark-borderColor="$borderDark"
+                  bg="$backgroundLight"
+                  $dark-bg="$backgroundDark"
+                  px="$4"
+                  py="$3.5"
+                >
+                  <HStack alignItems="center" justifyContent="space-between" flexDirection={isRTL ? 'row-reverse' : 'row'}>
+                    <Text fontSize="$md" color="$textLight" $dark-color="$textDark">
+                      {getSupportedLanguagesLabel()}
+                    </Text>
+                    <ChevronDown size={20} color={colors.text} />
+                  </HStack>
+                </Pressable>
+              </VStack>
+            </Box>
+
             {/* Country Code */}
             <Box bg="$surfaceLight" $dark-bg="$surfaceDark" borderRadius="$2xl" p="$4">
               <VStack space="md">
@@ -776,6 +900,149 @@ export default function StoreSettingsScreen() {
         'code',
         t('select_language')
       )}
+
+      {/* Supported Languages Modal (Multi-select with max 2) */}
+      <Modal
+        visible={supportedLanguagesModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSupportedLanguagesModalVisible(false)}
+      >
+        <Pressable
+          flex={1}
+          bg="rgba(0,0,0,0.6)"
+          onPress={() => setSupportedLanguagesModalVisible(false)}
+          justifyContent="center"
+          px="$5"
+        >
+          <Pressable onPress={(e) => e.stopPropagation()}>
+            <Box
+              bg="$surfaceLight"
+              $dark-bg="$surfaceDark"
+              borderRadius="$3xl"
+              overflow="hidden"
+              maxHeight="75%"
+              style={{
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 8 },
+                shadowOpacity: isDark ? 0.4 : 0.15,
+                shadowRadius: 24,
+                elevation: 12,
+              }}
+            >
+              {/* Header */}
+              <Box
+                px="$5"
+                py="$4"
+                borderBottomWidth={1}
+                borderBottomColor="$borderLight"
+                $dark-borderBottomColor="$borderDark"
+                bg="$backgroundLight"
+                $dark-bg="$backgroundDark"
+              >
+                <HStack
+                  alignItems="center"
+                  justifyContent="space-between"
+                  flexDirection={isRTL ? 'row-reverse' : 'row'}
+                >
+                  <VStack flex={1}>
+                    <Heading size="lg" color="$textLight" $dark-color="$textDark">
+                      {currentLanguage === 'ar' ? 'اللغات المدعومة' : 'Supported Languages'}
+                    </Heading>
+                    <Text fontSize="$xs" color="$textSecondaryLight" $dark-color="$textSecondaryDark" mt="$1">
+                      {currentLanguage === 'ar' ? 'اختر حتى لغتين' : 'Select up to 2 languages'}
+                    </Text>
+                  </VStack>
+                  <Pressable
+                    onPress={() => setSupportedLanguagesModalVisible(false)}
+                    w={36}
+                    h={36}
+                    borderRadius="$full"
+                    alignItems="center"
+                    justifyContent="center"
+                    bg="$borderLight"
+                    $dark-bg="$borderDark"
+                    $hover-bg="$backgroundHoverLight"
+                    $dark-hover-bg="$backgroundHoverDark"
+                  >
+                    <X size={20} color={colors.text} strokeWidth={2.5} />
+                  </Pressable>
+                </HStack>
+              </Box>
+
+              {/* Languages List */}
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 12 }}
+              >
+                {ALL_LANGUAGES.map((lang, index) => {
+                  const isSelected = supportedLanguages.includes(lang.code);
+                  const isLast = index === ALL_LANGUAGES.length - 1;
+
+                  return (
+                    <TouchableOpacity
+                      key={lang.code}
+                      onPress={() => {
+                        haptics.light();
+                        handleToggleLanguage(lang.code);
+                      }}
+                      style={{
+                        marginTop: index === 0 ? 0 : 8,
+                        marginBottom: isLast ? 0 : 0,
+                        paddingHorizontal: 20,
+                        paddingVertical: 16,
+                        borderRadius: 16,
+                        backgroundColor: isSelected
+                          ? (isDark ? 'rgba(16, 185, 129, 0.25)' : 'rgba(16, 185, 129, 0.12)')
+                          : (isDark ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.02)'),
+                        borderWidth: isSelected ? 2 : 1,
+                        borderColor: isSelected
+                          ? (isDark ? 'rgba(16, 185, 129, 0.5)' : 'rgba(16, 185, 129, 0.3)')
+                          : (isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.06)'),
+                      }}
+                    >
+                      <HStack
+                        alignItems="center"
+                        justifyContent="space-between"
+                        flexDirection={isRTL ? 'row-reverse' : 'row'}
+                      >
+                        <HStack alignItems="center" space="md" flex={1} flexDirection={isRTL ? 'row-reverse' : 'row'}>
+                          <Text fontSize="$2xl">{lang.flag}</Text>
+                          <VStack flex={1}>
+                            <Text
+                              fontSize="$md"
+                              color={isSelected ? '$success500' : '$textLight'}
+                              $dark-color={isSelected ? '$success300' : '$textDark'}
+                              fontWeight={isSelected ? '$bold' : '$medium'}
+                            >
+                              {currentLanguage === 'ar' ? lang.nameAr : lang.name}
+                            </Text>
+                            <Text fontSize="$xs" color="$textSecondaryLight" $dark-color="$textSecondaryDark">
+                              {lang.code.toUpperCase()}
+                            </Text>
+                          </VStack>
+                        </HStack>
+                        {isSelected && (
+                          <Box
+                            w={28}
+                            h={28}
+                            borderRadius="$full"
+                            bg="$success500"
+                            alignItems="center"
+                            justifyContent="center"
+                          >
+                            <Check size={16} color="#FFFFFF" strokeWidth={3} />
+                          </Box>
+                        )}
+                      </HStack>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </Box>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       {renderPickerModal(
         countryCodeModalVisible,

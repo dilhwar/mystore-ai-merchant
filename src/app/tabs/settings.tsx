@@ -113,73 +113,46 @@ export default function SettingsScreen() {
     );
   };
 
-  const handleLanguageChange = async () => {
+  const handleLanguageChange = () => {
     haptics.light();
+
     Alert.alert(
       tCommon('select_language'),
-      tCommon('choose_app_language'),
+      '',
       [
         {
-          text: tCommon('ar'),
-          onPress: async () => {
-            try {
-              await AsyncStorage.setItem('appLanguage', 'ar');
-              await changeLanguage('ar');
-
-              Alert.alert(
-                tCommon('language_changed'),
-                tCommon('reload_app_message'),
-                [
-                  { text: tCommon('later'), style: 'cancel' },
-                  {
-                    text: tCommon('reload'),
-                    onPress: async () => {
-                      if (__DEV__) {
-                        Alert.alert(tCommon('reload'), tCommon('reload_manually'));
-                      } else {
-                        await Updates.reloadAsync();
-                      }
-                    },
-                  },
-                ]
-              );
-            } catch (error) {
-              console.error('Error changing language:', error);
-            }
-          },
+          text: '🇸🇦 العربية (Arabic)',
+          onPress: () => handleSelectLanguage('ar'),
         },
         {
-          text: tCommon('en'),
-          onPress: async () => {
-            try {
-              await AsyncStorage.setItem('appLanguage', 'en');
-              await changeLanguage('en');
-
-              Alert.alert(
-                tCommon('language_changed'),
-                tCommon('reload_app_message'),
-                [
-                  { text: tCommon('later'), style: 'cancel' },
-                  {
-                    text: tCommon('reload'),
-                    onPress: async () => {
-                      if (__DEV__) {
-                        Alert.alert(tCommon('reload'), tCommon('reload_manually'));
-                      } else {
-                        await Updates.reloadAsync();
-                      }
-                    },
-                  },
-                ]
-              );
-            } catch (error) {
-              console.error('Error changing language:', error);
-            }
-          },
+          text: '🇺🇸 English (الإنجليزية)',
+          onPress: () => handleSelectLanguage('en'),
         },
-        { text: tCommon('cancel'), style: 'cancel' },
+        {
+          text: tCommon('cancel'),
+          style: 'cancel',
+          onPress: () => haptics.light(),
+        },
       ]
     );
+  };
+
+  const handleSelectLanguage = async (lang: 'ar' | 'en') => {
+    haptics.light();
+
+    try {
+      await AsyncStorage.setItem('appLanguage', lang);
+      await changeLanguage(lang);
+      haptics.success();
+
+      // Reload app automatically
+      if (!__DEV__) {
+        await Updates.reloadAsync();
+      }
+    } catch (error) {
+      console.error('Error changing language:', error);
+      haptics.error();
+    }
   };
 
   const sections: SettingSection[] = [
@@ -226,14 +199,6 @@ export default function SettingsScreen() {
           iconColor: '$green500',
           iconBg: '$green50',
           iconBgDark: 'rgba(34, 197, 94, 0.15)',
-        },
-        {
-          id: 'theme',
-          icon: Palette,
-          label: t('theme'),
-          iconColor: '$pink500',
-          iconBg: '$pink50',
-          iconBgDark: 'rgba(236, 72, 153, 0.15)',
         },
       ],
     },
@@ -298,19 +263,8 @@ export default function SettingsScreen() {
           $dark-color="$textDark"
           textAlign={isRTL ? 'right' : 'left'}
         >
-          {getStoreName()}
+          {t('settings')}
         </Heading>
-        {store && (
-          <Text
-            fontSize="$sm"
-            color="$textSecondaryLight"
-            $dark-color="$textSecondaryDark"
-            mt="$1"
-            textAlign={isRTL ? 'right' : 'left'}
-          >
-            {user?.email || ''}
-          </Text>
-        )}
       </Box>
 
       <ScrollView
@@ -326,75 +280,6 @@ export default function SettingsScreen() {
         }
       >
         <Box px="$4">
-          {/* Store Info Card */}
-          {store && (
-            <Box
-              mb="$6"
-              p="$4"
-              bg="$surfaceLight"
-              $dark-bg="$surfaceDark"
-              borderRadius="$2xl"
-            >
-              <VStack space="sm">
-                <HStack
-                  alignItems="center"
-                  justifyContent="space-between"
-                  flexDirection={isRTL ? 'row-reverse' : 'row'}
-                >
-                  <Text
-                    fontSize="$sm"
-                    fontWeight="$medium"
-                    color="$textSecondaryLight"
-                    $dark-color="$textSecondaryDark"
-                  >
-                    {t('store_url')}
-                  </Text>
-                  <Text
-                    fontSize="$sm"
-                    color="$primary500"
-                    numberOfLines={1}
-                    flex={1}
-                    textAlign={isRTL ? 'left' : 'right'}
-                    ml={isRTL ? 0 : '$2'}
-                    mr={isRTL ? '$2' : 0}
-                  >
-                    {store.storeUrl?.replace('https://', '') || `shop.my-store.ai/${store.slug}`}
-                  </Text>
-                </HStack>
-                <HStack
-                  alignItems="center"
-                  justifyContent="space-between"
-                  flexDirection={isRTL ? 'row-reverse' : 'row'}
-                >
-                  <Text
-                    fontSize="$sm"
-                    fontWeight="$medium"
-                    color="$textSecondaryLight"
-                    $dark-color="$textSecondaryDark"
-                  >
-                    {t('store_status')}
-                  </Text>
-                  <Box
-                    px="$3"
-                    py="$1"
-                    borderRadius="$full"
-                    bg={store.isPublished ? '$success100' : '$amber100'}
-                    $dark-bg={store.isPublished ? 'rgba(34, 197, 94, 0.2)' : 'rgba(245, 158, 11, 0.2)'}
-                  >
-                    <Text
-                      fontSize="$xs"
-                      fontWeight="$semibold"
-                      color={store.isPublished ? '$success700' : '$amber700'}
-                      $dark-color={store.isPublished ? '$success400' : '$amber400'}
-                    >
-                      {store.isPublished ? t('published') : t('draft')}
-                    </Text>
-                  </Box>
-                </HStack>
-              </VStack>
-            </Box>
-          )}
-
           {/* Settings Sections */}
           {sections.map((section, sectionIndex) => (
             <Box key={section.title} mb="$6">
@@ -414,10 +299,18 @@ export default function SettingsScreen() {
               {/* Section Items */}
               <VStack
                 space="sm"
-                bg="$surfaceLight"
-                $dark-bg="$surfaceDark"
                 borderRadius="$2xl"
                 overflow="hidden"
+                style={{
+                  backgroundColor: isDark
+                    ? 'rgba(255, 255, 255, 0.05)'
+                    : 'rgba(255, 255, 255, 0.9)',
+                  backdropFilter: 'blur(20px)',
+                  borderWidth: 1,
+                  borderColor: isDark
+                    ? 'rgba(255, 255, 255, 0.1)'
+                    : 'rgba(0, 0, 0, 0.05)',
+                }}
               >
                 {section.items.map((item, itemIndex) => {
                   const Icon = item.icon;
@@ -425,11 +318,12 @@ export default function SettingsScreen() {
                     <Pressable
                       key={item.id}
                       onPress={() => handleItemPress(item)}
-                      bg="$surfaceLight"
-                      $dark-bg="$surfaceDark"
-                      $hover-bg="$backgroundHoverLight"
-                      $dark-hover-bg="$backgroundHoverDark"
                       $active-opacity={0.8}
+                      style={{
+                        backgroundColor: isDark
+                          ? 'rgba(255, 255, 255, 0.03)'
+                          : 'rgba(255, 255, 255, 0.6)',
+                      }}
                     >
                       <HStack
                         px="$4"
@@ -500,17 +394,6 @@ export default function SettingsScreen() {
                           }}
                         />
                       </HStack>
-
-                      {/* Divider */}
-                      {itemIndex < section.items.length - 1 && (
-                        <Box
-                          h={1}
-                          bg="$borderLight"
-                          $dark-bg="$borderDark"
-                          opacity={0.3}
-                          mx="$4"
-                        />
-                      )}
                     </Pressable>
                   );
                 })}
@@ -524,12 +407,17 @@ export default function SettingsScreen() {
             mb="$6"
             borderRadius="$2xl"
             overflow="hidden"
-            bg="$error50"
-            $dark-bg="rgba(239, 68, 68, 0.1)"
-            borderWidth={1}
-            borderColor="$error100"
-            $dark-borderColor="rgba(239, 68, 68, 0.2)"
             $active-opacity={0.8}
+            style={{
+              backgroundColor: isDark
+                ? 'rgba(239, 68, 68, 0.15)'
+                : 'rgba(254, 226, 226, 0.8)',
+              backdropFilter: 'blur(10px)',
+              borderWidth: 1,
+              borderColor: isDark
+                ? 'rgba(239, 68, 68, 0.25)'
+                : 'rgba(239, 68, 68, 0.15)',
+            }}
           >
             <HStack
               px="$4"

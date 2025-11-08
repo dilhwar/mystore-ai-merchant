@@ -60,23 +60,23 @@ import {
 // Helper function to get status config
 const getStatusConfig = (status: OrderStatus) => {
   const configs = {
-    PENDING: { color: '$warning500', bg: '$warning100', darkBg: '$warning900', icon: Clock },
-    CONFIRMED: { color: '$info500', bg: '$info100', darkBg: '$info900', icon: CheckCircle },
-    PROCESSING: { color: '$purple500', bg: '$purple100', darkBg: '$purple900', icon: Package },
-    SHIPPED: { color: '$primary500', bg: '$primary100', darkBg: '$primary900', icon: Truck },
-    DELIVERED: { color: '$success500', bg: '$success100', darkBg: '$success900', icon: CheckCircle },
-    CANCELLED: { color: '$error500', bg: '$error100', darkBg: '$error900', icon: XCircle },
-    REFUNDED: { color: '$error500', bg: '$error100', darkBg: '$error900', icon: DollarSign },
+    PENDING: { color: '$warning500', darkColor: '$warning300', bg: '$warning100', darkBg: '$warning900', icon: Clock, iconColor: '#f59e0b', iconColorDark: '#fbbf24' },
+    CONFIRMED: { color: '$info500', darkColor: '$info300', bg: '$info100', darkBg: '$info900', icon: CheckCircle, iconColor: '#3b82f6', iconColorDark: '#60a5fa' },
+    PROCESSING: { color: '$purple500', darkColor: '$purple300', bg: '$purple100', darkBg: '$purple900', icon: Package, iconColor: '#8b5cf6', iconColorDark: '#a78bfa' },
+    SHIPPED: { color: '$primary500', darkColor: '$primary300', bg: '$primary100', darkBg: '$primary900', icon: Truck, iconColor: '#6366f1', iconColorDark: '#818cf8' },
+    DELIVERED: { color: '$success500', darkColor: '$success300', bg: '$success100', darkBg: '$success900', icon: CheckCircle, iconColor: '#10b981', iconColorDark: '#34d399' },
+    CANCELLED: { color: '$error500', darkColor: '$error300', bg: '$error100', darkBg: '$error900', icon: XCircle, iconColor: '#ef4444', iconColorDark: '#f87171' },
+    REFUNDED: { color: '$error500', darkColor: '$error300', bg: '$error100', darkBg: '$error900', icon: DollarSign, iconColor: '#ef4444', iconColorDark: '#f87171' },
   };
   return configs[status] || configs.PENDING;
 };
 
 const getPaymentStatusConfig = (status: PaymentStatus) => {
   const configs = {
-    PENDING: { color: '$warning500', bg: '$warning100', darkBg: '$warning900', icon: Clock },
-    PAID: { color: '$success500', bg: '$success100', darkBg: '$success900', icon: CheckCircle },
-    FAILED: { color: '$error500', bg: '$error100', darkBg: '$error900', icon: XCircle },
-    REFUNDED: { color: '$error500', bg: '$error100', darkBg: '$error900', icon: DollarSign },
+    PENDING: { color: '$warning500', darkColor: '$warning300', bg: '$warning100', darkBg: '$warning900', icon: Clock, iconColor: '#f59e0b', iconColorDark: '#fbbf24' },
+    PAID: { color: '$success500', darkColor: '$success300', bg: '$success100', darkBg: '$success900', icon: CheckCircle, iconColor: '#10b981', iconColorDark: '#34d399' },
+    FAILED: { color: '$error500', darkColor: '$error300', bg: '$error100', darkBg: '$error900', icon: XCircle, iconColor: '#ef4444', iconColorDark: '#f87171' },
+    REFUNDED: { color: '$error500', darkColor: '$error300', bg: '$error100', darkBg: '$error900', icon: DollarSign, iconColor: '#ef4444', iconColorDark: '#f87171' },
   };
   return configs[status] || configs.PENDING;
 };
@@ -613,7 +613,11 @@ export default function OrderDetailsScreen() {
                           >
                             <StatusIcon
                               size={18}
-                              color={isSelected ? '#FFFFFF' : colors[statusConfig.color.replace('$', '') as keyof typeof colors]}
+                              color={
+                                isSelected
+                                  ? '#FFFFFF'
+                                  : (isDark ? statusConfig.iconColorDark : statusConfig.iconColor)
+                              }
                               strokeWidth={2.5}
                             />
                           </Box>
@@ -703,7 +707,11 @@ export default function OrderDetailsScreen() {
                           >
                             <StatusIcon
                               size={18}
-                              color={isSelected ? '#FFFFFF' : colors[statusConfig.color.replace('$', '') as keyof typeof colors]}
+                              color={
+                                isSelected
+                                  ? '#FFFFFF'
+                                  : (isDark ? statusConfig.iconColorDark : statusConfig.iconColor)
+                              }
                               strokeWidth={2.5}
                             />
                           </Box>
@@ -803,99 +811,133 @@ export default function OrderDetailsScreen() {
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
         {/* Status & Payment Cards */}
-        <Box px="$4" mb="$4">
-          <HStack space="md">
+        <Box px="$4" mb="$3">
+          <HStack space="sm">
             {/* Order Status Card */}
-            <Box flex={1}>
-              <Pressable
-                onPress={() => {
-                  haptics.light();
-                  setShowOrderStatusModal(true);
+            <Pressable
+              flex={1}
+              onPress={() => {
+                haptics.light();
+                setShowOrderStatusModal(true);
+              }}
+              $active-opacity={0.85}
+              $active-scale={0.97}
+            >
+              <Box
+                borderRadius="$xl"
+                p="$3"
+                style={{
+                  background: isDark
+                    ? 'linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(139, 92, 246, 0.1) 100%)'
+                    : 'linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, rgba(139, 92, 246, 0.08) 100%)',
+                  borderWidth: 1.5,
+                  borderColor: isDark
+                    ? 'rgba(99, 102, 241, 0.3)'
+                    : 'rgba(99, 102, 241, 0.25)',
                 }}
               >
-                <Box
-                  bg="$cardLight"
-                  $dark-bg="$cardDark"
-                  borderRadius="$xl"
-                  p="$4"
-                  borderWidth={2}
-                  borderColor={getStatusConfig(order.status).color}
-                >
-                  <VStack space="sm">
-                    <GText fontSize="$xs" color="$textSecondaryLight" $dark-color="$textSecondaryDark" fontWeight="$medium">
+                <HStack space="sm" alignItems="center">
+                  <Box
+                    w={36}
+                    h={36}
+                    borderRadius="$lg"
+                    alignItems="center"
+                    justifyContent="center"
+                    style={{
+                      backgroundColor: isDark
+                        ? 'rgba(99, 102, 241, 0.25)'
+                        : 'rgba(99, 102, 241, 0.15)',
+                    }}
+                  >
+                    {React.createElement(getStatusConfig(order.status).icon, {
+                      size: 18,
+                      color: isDark ? '#a5b4fc' : '#6366f1',
+                      strokeWidth: 2.5,
+                    })}
+                  </Box>
+                  <VStack flex={1}>
+                    <GText
+                      fontSize="$2xs"
+                      fontWeight="$medium"
+                      style={{ color: isDark ? '#a5b4fc' : '#6366f1' }}
+                    >
                       {t('order_status')}
                     </GText>
-
-                    <Box
-                      bg={getStatusConfig(order.status).color}
-                      borderRadius="$lg"
-                      p="$2.5"
+                    <GText
+                      fontSize="$xs"
+                      fontWeight="$bold"
+                      numberOfLines={1}
+                      style={{ color: isDark ? '#e0e7ff' : '#4338ca' }}
                     >
-                      <HStack space="xs" alignItems="center" justifyContent="center">
-                        {React.createElement(getStatusConfig(order.status).icon, {
-                          size: 18,
-                          color: '#FFFFFF',
-                          strokeWidth: 2.5,
-                        })}
-                        <GText fontSize="$sm" color="$white" fontWeight="$bold" numberOfLines={1}>
-                          {t(`status_${order.status?.toLowerCase() || 'pending'}`)}
-                        </GText>
-                      </HStack>
-                    </Box>
-
-                    <GText fontSize="$2xs" color="$textTertiaryLight" $dark-color="$textTertiaryDark" textAlign="center">
-                      {t('tap_to_change')}
+                      {t(`status_${order.status?.toLowerCase() || 'pending'}`)}
                     </GText>
                   </VStack>
-                </Box>
-              </Pressable>
-            </Box>
+                </HStack>
+              </Box>
+            </Pressable>
 
             {/* Payment Status Card */}
-            <Box flex={1}>
-              <Pressable
-                onPress={() => {
-                  haptics.light();
-                  setShowPaymentStatusModal(true);
+            <Pressable
+              flex={1}
+              onPress={() => {
+                haptics.light();
+                setShowPaymentStatusModal(true);
+              }}
+              $active-opacity={0.85}
+              $active-scale={0.97}
+            >
+              <Box
+                borderRadius="$xl"
+                p="$3"
+                style={{
+                  background: isDark
+                    ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(5, 150, 105, 0.1) 100%)'
+                    : 'linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(5, 150, 105, 0.08) 100%)',
+                  borderWidth: 1.5,
+                  borderColor: isDark
+                    ? 'rgba(16, 185, 129, 0.3)'
+                    : 'rgba(16, 185, 129, 0.25)',
                 }}
               >
-                <Box
-                  bg="$cardLight"
-                  $dark-bg="$cardDark"
-                  borderRadius="$xl"
-                  p="$4"
-                  borderWidth={2}
-                  borderColor={getPaymentStatusConfig(order.paymentStatus).color}
-                >
-                  <VStack space="sm">
-                    <GText fontSize="$xs" color="$textSecondaryLight" $dark-color="$textSecondaryDark" fontWeight="$medium">
+                <HStack space="sm" alignItems="center">
+                  <Box
+                    w={36}
+                    h={36}
+                    borderRadius="$lg"
+                    alignItems="center"
+                    justifyContent="center"
+                    style={{
+                      backgroundColor: isDark
+                        ? 'rgba(16, 185, 129, 0.25)'
+                        : 'rgba(16, 185, 129, 0.15)',
+                    }}
+                  >
+                    {React.createElement(getPaymentStatusConfig(order.paymentStatus).icon, {
+                      size: 18,
+                      color: isDark ? '#6ee7b7' : '#10b981',
+                      strokeWidth: 2.5,
+                    })}
+                  </Box>
+                  <VStack flex={1}>
+                    <GText
+                      fontSize="$2xs"
+                      fontWeight="$medium"
+                      style={{ color: isDark ? '#6ee7b7' : '#10b981' }}
+                    >
                       {t('payment_status')}
                     </GText>
-
-                    <Box
-                      bg={getPaymentStatusConfig(order.paymentStatus).color}
-                      borderRadius="$lg"
-                      p="$2.5"
+                    <GText
+                      fontSize="$xs"
+                      fontWeight="$bold"
+                      numberOfLines={1}
+                      style={{ color: isDark ? '#d1fae5' : '#047857' }}
                     >
-                      <HStack space="xs" alignItems="center" justifyContent="center">
-                        {React.createElement(getPaymentStatusConfig(order.paymentStatus).icon, {
-                          size: 18,
-                          color: '#FFFFFF',
-                          strokeWidth: 2.5,
-                        })}
-                        <GText fontSize="$sm" color="$white" fontWeight="$bold" numberOfLines={1}>
-                          {t(`payment_${order.paymentStatus?.toLowerCase() || 'pending'}`)}
-                        </GText>
-                      </HStack>
-                    </Box>
-
-                    <GText fontSize="$2xs" color="$textTertiaryLight" $dark-color="$textTertiaryDark" textAlign="center">
-                      {t('tap_to_change')}
+                      {t(`payment_${order.paymentStatus?.toLowerCase() || 'pending'}`)}
                     </GText>
                   </VStack>
-                </Box>
-              </Pressable>
-            </Box>
+                </HStack>
+              </Box>
+            </Pressable>
           </HStack>
         </Box>
 

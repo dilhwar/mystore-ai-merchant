@@ -1,30 +1,29 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Alert,
-  ActivityIndicator,
-  RefreshControl,
-  Switch,
-} from 'react-native';
+import { Alert, RefreshControl, ScrollView } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/store/themeStore';
-import { PageHeader } from '@/components/ui/PageHeader';
-import { spacing } from '@/theme/spacing';
+import { router } from 'expo-router';
+import { haptics } from '@/utils/haptics';
 import { getApps, updateApp, App, getAppsByCategory } from '@/services/apps.service';
+import {
+  Box,
+  HStack,
+  VStack,
+  Text,
+  Spinner,
+  Switch,
+} from '@gluestack-ui/themed';
 
 export default function AppsScreen() {
   const { t, i18n } = useTranslation(['settings', 'common']);
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
 
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [apps, setApps] = useState<App[]>([]);
 
   const currentLanguage = i18n.language;
+  const isRTL = currentLanguage === 'ar';
 
   // Load apps
   const loadApps = useCallback(async () => {
@@ -54,18 +53,23 @@ export default function AppsScreen() {
   const handleToggle = async (app: App) => {
     // Prevent disabling essential apps
     if (app.isEssential) {
+      haptics.error();
       Alert.alert(t('settings:cannot_disable'), t('settings:essential_app_warning'));
       return;
     }
 
+    haptics.light();
+
     try {
       await updateApp(app.id, !app.isEnabled);
+      haptics.success();
       loadApps(); // Reload to get updated status
       Alert.alert(
         t('common:success'),
         app.isEnabled ? t('settings:app_disabled') : t('settings:app_enabled')
       );
     } catch (error: any) {
+      haptics.error();
       Alert.alert(t('common:error'), error.message);
     }
   };
@@ -97,22 +101,17 @@ export default function AppsScreen() {
 
   if (loading && !refreshing) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <PageHeader title={t('settings:apps')} />
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-        </View>
-      </View>
+      <Box flex={1} bg="$backgroundLight" $dark-bg="$backgroundDark" alignItems="center" justifyContent="center">
+        <Spinner size="large" color="$primary500" />
+      </Box>
     );
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <PageHeader title={t('settings:apps')} />
-
+    <Box flex={1} bg="$backgroundLight" $dark-bg="$backgroundDark">
       <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingTop: 16, paddingBottom: 100 }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -122,133 +121,124 @@ export default function AppsScreen() {
           />
         }
       >
-        {/* Apps by Category */}
-        {categories.map((category) => {
-          const categoryApps = getAppsByCategory(apps, category);
-          if (categoryApps.length === 0) return null;
+        <Box px="$4">
+          {/* Apps by Category */}
+          {categories.map((category) => {
+            const categoryApps = getAppsByCategory(apps, category);
+            if (categoryApps.length === 0) return null;
 
-          return (
-            <View key={category} style={styles.categorySection}>
-              <Text style={[styles.categoryTitle, { color: colors.text }]}>
-                {getCategoryName(category)}
-              </Text>
+            return (
+              <Box key={category} mb="$3">
+                {/* Apps List */}
+                <VStack
+                  space="sm"
+                  bg="$surfaceLight"
+                  $dark-bg="$surfaceDark"
+                  borderRadius="$2xl"
+                  overflow="hidden"
+                >
+                  {categoryApps.map((app, index) => {
+                    const appName = getAppName(app);
+                    const appDescription = getAppDescription(app);
 
-              {categoryApps.map((app) => {
-                const appName = getAppName(app);
-                const appDescription = getAppDescription(app);
-
-                return (
-                  <View
-                    key={app.id}
-                    style={[
-                      styles.appCard,
-                      { backgroundColor: colors.surface, borderColor: colors.border },
-                    ]}
-                  >
-                    <View style={styles.appIcon}>
-                      <Text style={styles.appIconText}>{app.icon}</Text>
-                    </View>
-
-                    <View style={styles.appInfo}>
-                      <Text style={[styles.appName, { color: colors.text }]}>
-                        {appName}
-                      </Text>
-                      {app.isEssential && (
-                        <View
-                          style={[
-                            styles.essentialBadge,
-                            { backgroundColor: colors.primary + '20' },
-                          ]}
+                    return (
+                      <Box key={app.id}>
+                        <HStack
+                          px="$4"
+                          py="$3.5"
+                          alignItems="center"
+                          space="md"
+                          flexDirection={isRTL ? 'row-reverse' : 'row'}
                         >
-                          <Text style={[styles.essentialText, { color: colors.primary }]}>
-                            {t('settings:essential')}
-                          </Text>
-                        </View>
-                      )}
-                    </View>
+                          {/* App Icon */}
+                          <Box
+                            w={44}
+                            h={44}
+                            borderRadius="$xl"
+                            bg="$backgroundLight"
+                            $dark-bg="$backgroundDark"
+                            alignItems="center"
+                            justifyContent="center"
+                          >
+                            <Text fontSize={22}>{app.icon}</Text>
+                          </Box>
 
-                    <Switch
-                      value={app.isEnabled}
-                      onValueChange={() => handleToggle(app)}
-                      disabled={app.isEssential}
-                      trackColor={{ false: colors.border, true: colors.primary + '80' }}
-                      thumbColor={app.isEnabled ? colors.primary : colors.textSecondary}
-                    />
-                  </View>
-                );
-              })}
-            </View>
-          );
-        })}
+                          {/* App Info */}
+                          <VStack flex={1} space="2xs">
+                            <HStack alignItems="center" space="xs" flexDirection={isRTL ? 'row-reverse' : 'row'}>
+                              <Text
+                                fontSize="$md"
+                                fontWeight="$semibold"
+                                color="$textLight"
+                                $dark-color="$textDark"
+                              >
+                                {appName}
+                              </Text>
+                              {app.isEssential && (
+                                <Box
+                                  px="$2"
+                                  py="$0.5"
+                                  borderRadius="$md"
+                                  bg="$primary100"
+                                  $dark-bg="rgba(59, 130, 246, 0.2)"
+                                >
+                                  <Text
+                                    fontSize="$2xs"
+                                    fontWeight="$bold"
+                                    color="$primary700"
+                                    $dark-color="$primary400"
+                                    textTransform="uppercase"
+                                  >
+                                    {t('settings:essential')}
+                                  </Text>
+                                </Box>
+                              )}
+                            </HStack>
+                            {appDescription && (
+                              <Text
+                                fontSize="$sm"
+                                color="$textSecondaryLight"
+                                $dark-color="$textSecondaryDark"
+                                numberOfLines={2}
+                              >
+                                {appDescription}
+                              </Text>
+                            )}
+                          </VStack>
+
+                          {/* Toggle Switch */}
+                          <Switch
+                            value={app.isEnabled}
+                            onValueChange={() => handleToggle(app)}
+                            disabled={app.isEssential}
+                            size="md"
+                            onTrackColor="$primary500"
+                            offTrackColor="$backgroundLight300"
+                            $dark-offTrackColor="$backgroundDark700"
+                            onThumbColor="$white"
+                            offThumbColor="$white"
+                          />
+                        </HStack>
+
+                        {/* Divider */}
+                        {index < categoryApps.length - 1 && (
+                          <Box
+                            h={1}
+                            bg="$borderLight"
+                            $dark-bg="$borderDark"
+                            opacity={0.3}
+                            mx="$4"
+                          />
+                        )}
+                      </Box>
+                    );
+                  })}
+                </VStack>
+              </Box>
+            );
+          })}
+        </Box>
       </ScrollView>
-    </View>
+    </Box>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: spacing.md,
-  },
-  centerContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  categorySection: {
-    marginBottom: spacing.l,
-  },
-  categoryTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    marginBottom: spacing.m,
-    paddingHorizontal: spacing.xs,
-    textTransform: 'uppercase',
-    opacity: 0.6,
-  },
-  appCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: spacing.m,
-    borderRadius: 12,
-    borderWidth: 1,
-    marginBottom: spacing.s,
-  },
-  appIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#F3F4F6',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: spacing.m,
-  },
-  appIconText: {
-    fontSize: 22,
-  },
-  appInfo: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.s,
-  },
-  appName: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  essentialBadge: {
-    paddingHorizontal: spacing.s,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  essentialText: {
-    fontSize: 9,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-  },
-});

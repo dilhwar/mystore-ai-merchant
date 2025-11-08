@@ -18,7 +18,6 @@ import {
   InputField,
   InputSlot,
   InputIcon,
-  Card,
   Actionsheet,
   ActionsheetBackdrop,
   ActionsheetContent,
@@ -96,6 +95,7 @@ export default function OrdersNewScreen() {
   const [showFilterSheet, setShowFilterSheet] = useState(false);
 
   const currentLocale = i18n.language;
+  const isRTL = i18n.language === 'ar';
 
   const loadOrders = async (refresh = false) => {
     try {
@@ -198,7 +198,13 @@ export default function OrdersNewScreen() {
     <Box flex={1} bg="$backgroundLight" $dark-bg="$backgroundDark">
       {/* Header */}
       <Box px="$4" pt="$12" pb="$4">
-        <Heading size="xl" color="$textLight" $dark-color="$textDark" mb="$4">
+        <Heading
+          size="xl"
+          color="$textLight"
+          $dark-color="$textDark"
+          mb="$4"
+          textAlign={isRTL ? 'right' : 'left'}
+        >
           {t('orders')}
         </Heading>
 
@@ -236,7 +242,7 @@ export default function OrdersNewScreen() {
         </Input>
 
         {/* Filter Button */}
-        <HStack mt="$4" space="md" alignItems="center">
+        <HStack mt="$4" space="md" alignItems="center" flexDirection={isRTL ? 'row-reverse' : 'row'}>
           <Pressable
             onPress={() => {
               setShowFilterSheet(true);
@@ -247,13 +253,13 @@ export default function OrdersNewScreen() {
             borderRadius="$lg"
             bg="$primary500"
           >
-            <HStack space="sm" alignItems="center" justifyContent="center">
+            <HStack space="sm" alignItems="center" justifyContent="center" flexDirection={isRTL ? 'row-reverse' : 'row'}>
               <Filter size={18} color="#FFFFFF" />
               <Text fontSize="$sm" color="$white" fontWeight="$semibold">
-                {selectedStatus === 'ALL' ? 'All Orders' : t(`status_${selectedStatus.toLowerCase()}`)}
+                {selectedStatus === 'ALL' ? (isRTL ? 'كل الطلبات' : 'All Orders') : t(`status_${selectedStatus.toLowerCase()}`)}
               </Text>
               {selectedStatus !== 'ALL' && (
-                <Badge action="success" variant="solid" size="sm" borderRadius="$full" ml="$2">
+                <Badge action="success" variant="solid" size="sm" borderRadius="$full" ml={isRTL ? 0 : '$2'} mr={isRTL ? '$2' : 0}>
                   <BadgeText fontSize="$2xs">1</BadgeText>
                 </Badge>
               )}
@@ -308,10 +314,10 @@ export default function OrdersNewScreen() {
             >
               <Package size={40} color={colors.textSecondary} strokeWidth={1.5} />
             </Box>
-            <Heading size="lg" color="$textLight" $dark-color="$textDark" mb="$2">
+            <Heading size="lg" color="$textLight" $dark-color="$textDark" mb="$2" textAlign="center">
               {t('no_orders_found')}
             </Heading>
-            <Text fontSize="$sm" color="$textSecondaryLight" $dark-color="$textSecondaryDark" textAlign="center">
+            <Text fontSize="$sm" color="$textSecondaryLight" $dark-color="$textSecondaryDark" textAlign="center" px="$4">
               {searchQuery || selectedStatus !== 'ALL'
                 ? t('no_orders_match_filters')
                 : t('start_selling_to_see_orders')}
@@ -332,94 +338,78 @@ export default function OrdersNewScreen() {
                     router.push(`/orders/${order.id}`);
                   }}
                 >
-                  <Card
-                    size="md"
-                    variant="elevated"
-                    bg="$cardLight"
-                    $dark-bg="$cardDark"
-                    mb="$3"
+                  <Box
+                    mb="$2"
+                    borderRadius="$xl"
+                    overflow="hidden"
+                    style={{
+                      backgroundColor: isDark
+                        ? 'rgba(255, 255, 255, 0.05)'
+                        : 'rgba(255, 255, 255, 0.9)',
+                      backdropFilter: 'blur(20px)',
+                      borderWidth: 1,
+                      borderColor: isDark
+                        ? 'rgba(255, 255, 255, 0.1)'
+                        : 'rgba(0, 0, 0, 0.05)',
+                    }}
                   >
-                    <VStack space="sm" p="$3">
+                    <VStack space="xs" p="$3.5">
                       {/* Header: Order Number & Amount */}
-                      <HStack justifyContent="space-between" alignItems="center">
-                        <HStack space="xs" alignItems="center" flex={1}>
-                          <Text
-                            fontSize="$md"
-                            fontWeight="$bold"
-                            color="$textLight"
-                            $dark-color="$textDark"
-                          >
-                            #{order.orderNumber}
-                          </Text>
-                        </HStack>
-                        <Heading size="lg" color="$success600" $dark-color="$success400">
+                      <HStack justifyContent="space-between" alignItems="center" flexDirection={isRTL ? 'row-reverse' : 'row'} mb="$1">
+                        <Text
+                          fontSize="$sm"
+                          fontWeight="$bold"
+                          color="$textLight"
+                          $dark-color="$textDark"
+                        >
+                          #{order.orderNumber}
+                        </Text>
+                        <Heading size="md" color="$success600" $dark-color="$success400">
                           {formatCurrency(order.total, order.currency || 'SAR', currentLocale)}
                         </Heading>
                       </HStack>
 
                       {/* Customer Info */}
-                      <HStack space="xs" alignItems="center">
+                      <HStack space="xs" alignItems="center" flexDirection={isRTL ? 'row-reverse' : 'row'} mb="$1">
                         <Box
-                          w={32}
-                          h={32}
+                          w={28}
+                          h={28}
                           borderRadius="$full"
                           bg="$primary100"
                           $dark-bg="$primary950"
                           alignItems="center"
                           justifyContent="center"
                         >
-                          <User size={16} color={colors.primary500} strokeWidth={2} />
+                          <User size={14} color={colors.primary500} strokeWidth={2} />
                         </Box>
                         <VStack flex={1}>
                           <Text
-                            fontSize="$sm"
+                            fontSize="$xs"
                             fontWeight="$semibold"
                             color="$textLight"
                             $dark-color="$textDark"
                             numberOfLines={1}
+                            textAlign={isRTL ? 'right' : 'left'}
                           >
                             {order.customerName}
                           </Text>
-                          {order.customerPhone && (
-                            <Text
-                              fontSize="$xs"
-                              color="$textSecondaryLight"
-                              $dark-color="$textSecondaryDark"
-                            >
-                              {order.customerPhone}
-                            </Text>
-                          )}
                         </VStack>
                       </HStack>
 
                       {/* Status Cards */}
-                      <HStack space="xs">
+                      <HStack space="xs" flexDirection={isRTL ? 'row-reverse' : 'row'} mb="$1">
                         {/* Order Status */}
                         <Box
                           flex={1}
                           p="$2"
-                          borderRadius="$lg"
+                          borderRadius="$md"
                           bg={statusConfig.color}
                         >
-                          <HStack space="xs" alignItems="center">
-                            <Box
-                              w={28}
-                              h={28}
-                              borderRadius="$full"
-                              bg="rgba(255, 255, 255, 0.25)"
-                              alignItems="center"
-                              justifyContent="center"
-                            >
-                              <StatusIcon size={14} color="#FFFFFF" strokeWidth={2.5} />
-                            </Box>
-                            <VStack flex={1}>
-                              <Text fontSize="$2xs" color="rgba(255, 255, 255, 0.8)" fontWeight="$medium">
-                                Status
-                              </Text>
-                              <Text fontSize="$xs" color="$white" fontWeight="$bold" numberOfLines={1}>
-                                {t(`status_${order.status.toLowerCase()}`)}
-                              </Text>
-                            </VStack>
+                          <HStack space="xs" alignItems="center" flexDirection={isRTL ? 'row-reverse' : 'row'}>
+                            <StatusIcon size={12} color="#FFFFFF" strokeWidth={2.5} />
+                            <Text fontSize="$2xs" color="$white" fontWeight="$bold" numberOfLines={1} textAlign={isRTL ? 'right' : 'left'}>
+                              {t(`status_${order.status.toLowerCase()}`)}
+                            </Text>
                           </HStack>
                         </Box>
 
@@ -427,36 +417,22 @@ export default function OrdersNewScreen() {
                         <Box
                           flex={1}
                           p="$2"
-                          borderRadius="$lg"
+                          borderRadius="$md"
                           bg={paymentConfig.color}
                         >
-                          <HStack space="xs" alignItems="center">
-                            <Box
-                              w={28}
-                              h={28}
-                              borderRadius="$full"
-                              bg="rgba(255, 255, 255, 0.25)"
-                              alignItems="center"
-                              justifyContent="center"
-                            >
-                              <DollarSign size={14} color="#FFFFFF" strokeWidth={2.5} />
-                            </Box>
-                            <VStack flex={1}>
-                              <Text fontSize="$2xs" color="rgba(255, 255, 255, 0.8)" fontWeight="$medium">
-                                Payment
-                              </Text>
-                              <Text fontSize="$xs" color="$white" fontWeight="$bold" numberOfLines={1}>
-                                {t(`payment_${(order.paymentStatus || 'PENDING').toLowerCase()}`)}
-                              </Text>
-                            </VStack>
+                          <HStack space="xs" alignItems="center" flexDirection={isRTL ? 'row-reverse' : 'row'}>
+                            <DollarSign size={12} color="#FFFFFF" strokeWidth={2.5} />
+                            <Text fontSize="$2xs" color="$white" fontWeight="$bold" numberOfLines={1} textAlign={isRTL ? 'right' : 'left'}>
+                              {t(`payment_${(order.paymentStatus || 'PENDING').toLowerCase()}`)}
+                            </Text>
                           </HStack>
                         </Box>
                       </HStack>
 
                       {/* Footer: Date & Items */}
-                      <HStack justifyContent="space-between" alignItems="center">
-                        <HStack space="xs" alignItems="center" flex={1}>
-                          <Clock size={12} color={colors.textSecondary} />
+                      <HStack justifyContent="space-between" alignItems="center" flexDirection={isRTL ? 'row-reverse' : 'row'}>
+                        <HStack space="xs" alignItems="center" flex={1} flexDirection={isRTL ? 'row-reverse' : 'row'}>
+                          <Clock size={10} color={colors.textSecondary} />
                           <Text
                             fontSize="$2xs"
                             color="$textSecondaryLight"
@@ -466,28 +442,31 @@ export default function OrdersNewScreen() {
                             {new Date(order.createdAt).toLocaleDateString(currentLocale, {
                               month: 'short',
                               day: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit',
                             })}
                           </Text>
                         </HStack>
 
-                        <HStack space="xs" alignItems="center">
-                          <Package size={12} color={colors.textSecondary} />
+                        <HStack space="xs" alignItems="center" flexDirection={isRTL ? 'row-reverse' : 'row'}>
+                          <Package size={10} color={colors.textSecondary} />
                           <Text
                             fontSize="$2xs"
                             color="$textSecondaryLight"
                             $dark-color="$textSecondaryDark"
                             fontWeight="$medium"
                           >
-                            {order.items.length} items
+                            {order.items.length}
                           </Text>
                         </HStack>
 
-                        <ChevronRight size={16} color={colors.primary500} strokeWidth={2.5} />
+                        <ChevronRight
+                          size={14}
+                          color={colors.primary500}
+                          strokeWidth={2.5}
+                          style={{ transform: [{ scaleX: isRTL ? -1 : 1 }] }}
+                        />
                       </HStack>
                     </VStack>
-                  </Card>
+                  </Box>
                 </Pressable>
               );
             })}
@@ -520,8 +499,9 @@ export default function OrdersNewScreen() {
                 bg={selectedStatus === 'ALL' ? '$primary500' : '$surfaceLight'}
                 $dark-bg={selectedStatus === 'ALL' ? '$primary500' : '$surfaceDark'}
                 borderRadius="$lg"
+                flexDirection={isRTL ? 'row-reverse' : 'row'}
               >
-                <HStack space="sm" alignItems="center" flex={1}>
+                <HStack space="sm" alignItems="center" flex={1} flexDirection={isRTL ? 'row-reverse' : 'row'}>
                   <Package
                     size={18}
                     color={selectedStatus === 'ALL' ? '#FFFFFF' : colors.text}
@@ -533,7 +513,7 @@ export default function OrdersNewScreen() {
                     color={selectedStatus === 'ALL' ? '$white' : '$textLight'}
                     $dark-color={selectedStatus === 'ALL' ? '$white' : '$textDark'}
                   >
-                    All Orders
+                    {isRTL ? 'كل الطلبات' : 'All Orders'}
                   </Text>
                 </HStack>
                 <Badge
@@ -574,7 +554,7 @@ export default function OrdersNewScreen() {
                       borderRadius="$lg"
                     >
                       <VStack space="xs">
-                        <HStack justifyContent="space-between" alignItems="center">
+                        <HStack justifyContent="space-between" alignItems="center" flexDirection={isRTL ? 'row-reverse' : 'row'}>
                           <StatusIcon
                             size={18}
                             color={isSelected ? '#FFFFFF' : colors[statusConfig.color.replace('$', '') as keyof typeof colors]}
@@ -595,6 +575,7 @@ export default function OrdersNewScreen() {
                           color={isSelected ? '$white' : '$textLight'}
                           $dark-color={isSelected ? '$white' : '$textDark'}
                           numberOfLines={1}
+                          textAlign={isRTL ? 'right' : 'left'}
                         >
                           {t(`status_${status.toLowerCase()}`)}
                         </Text>
