@@ -54,7 +54,6 @@ import {
   TrendingDown,
   DollarSign,
   Archive,
-  Copy,
   Filter,
   ChevronDown,
   ChevronRight,
@@ -657,7 +656,8 @@ export default function ProductsNewScreen() {
               </HStack>
             </ActionsheetItem>
 
-            <ActionsheetItem
+            {/* Duplicate Product - Disabled (Backend endpoint not available) */}
+            {/* <ActionsheetItem
               onPress={() => {
                 setShowActionSheet(false);
                 haptics.selection();
@@ -672,7 +672,7 @@ export default function ProductsNewScreen() {
                   {t('duplicate_product')}
                 </ActionsheetItemText>
               </HStack>
-            </ActionsheetItem>
+            </ActionsheetItem> */}
 
             <ActionsheetItem onPress={handleDelete} bg="transparent">
               <HStack w="$full" alignItems="center" space="md">

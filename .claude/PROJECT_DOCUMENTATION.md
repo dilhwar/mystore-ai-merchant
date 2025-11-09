@@ -1,6 +1,36 @@
 # MyStore AI Merchant - توثيق المشروع الشامل
 
-> **ملاحظة مهمة جداً**: هذا التطبيق يتصل بـ Backend وFrontend موجودين مسبقاً. **لا تقم بتغيير أي شيء في البيئة الخلفية (Backend) أو الواجهة الأمامية (Frontend)** - فقط اربط التطبيق بما هو موجود حالياً.
+> **⚠️ قواعد مهمة جداً - CRITICAL RULES:**
+>
+> 🚫 **ممنوع منعاً باتاً تعديل أي كود في:**
+> - `/Users/dilhwar/My-Store/my-store-platform/` (Backend + Storefront)
+> - أي ملفات `.json` للإعدادات
+>
+> ✅ **التعديل مسموح فقط في:**
+> - `/Users/dilhwar/My-Store/mystore-ai-merchant/` (Merchant App)
+>
+> 📁 **هيكل المشاريع:**
+> - `mystore-ai-merchant/` = تطبيق Merchant (React Native) - التطبيق الحالي
+> - `my-store-platform/backend/` = Backend API (Node.js + Prisma)
+> - `my-store-platform/frontend/customer-storefront-nextjs/` = Storefront للعملاء (Next.js)
+> - `mystore-website/` = موقع تسويقي فقط (Marketing Website)
+
+---
+
+## 🐛 مشاكل معروفة - Known Issues
+
+### ❌ مشكلة: حقل `languages` في Store Settings
+- **الوصف**: عندما يتم تغيير `languages` من تطبيق Merchant، لا يتغير في Storefront
+- **السبب**:
+  - ✅ Backend يحفظ `languages` في Database بشكل صحيح
+  - ❌ Storefront لا يقرأ `languages` من Database - يستخدم قيم ثابتة (hardcoded)
+- **الموقع في الكود**:
+  - Frontend: `src/app/settings/store-settings.tsx` (يرسل البيانات)
+  - Backend: `my-store-platform/backend/src/controllers/store.controller.ts:352` (يحفظ البيانات)
+  - Storefront: لا يقرأ من Database
+- **الحل**: يحتاج تعديل في Storefront (ممنوع حالياً)
+- **الحالة**: البيانات تُحفظ لكن لا تُستخدم في Storefront
+- **تاريخ التوثيق**: 2025-11-09
 
 ---
 

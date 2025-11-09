@@ -34,10 +34,12 @@ export const getStoreSettings = async (): Promise<Store> => {
 
 /**
  * Update store settings
+ * @param storeId - The ID of the store to update
+ * @param data - The data to update
  */
-export const updateStoreSettings = async (data: UpdateStoreData): Promise<Store> => {
+export const updateStoreSettings = async (storeId: string, data: UpdateStoreData): Promise<Store> => {
   try {
-    const response = await apiPut<Store>('/merchant/store', data);
+    const response = await apiPut<Store>(`/stores/${storeId}`, data);
     return response.data;
   } catch (error: any) {
     console.error('🏪 Store Settings: Update error:', error.message);

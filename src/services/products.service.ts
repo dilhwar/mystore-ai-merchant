@@ -1,4 +1,4 @@
-import { apiGet, apiPost, apiDelete } from './api';
+import { apiGet, apiPost, apiPut, apiDelete } from './api';
 
 export interface ProductImage {
   id: string;
@@ -291,7 +291,7 @@ export const updateProduct = async (
       });
     }
 
-    const response = await apiPost<{ message: string; data: Product }>(
+    const response = await apiPut<{ message: string; data: Product }>(
       `/products/${id}`,
       formData,
       {

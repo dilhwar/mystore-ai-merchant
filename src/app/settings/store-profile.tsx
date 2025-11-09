@@ -93,7 +93,11 @@ export default function StoreProfileScreen() {
         address: address.trim(),
       };
 
-      const updatedStore = await updateStoreSettings(updateData);
+      if (!store?.id) {
+        throw new Error('Store ID not found');
+      }
+
+      const updatedStore = await updateStoreSettings(store.id, updateData);
 
       // Update auth store with new settings
       setStoreSettings({

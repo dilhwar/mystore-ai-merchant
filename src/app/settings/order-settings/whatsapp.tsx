@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { ScrollView, Alert } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { ScrollView, Alert, RefreshControl } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/store/themeStore';
 import { useRouter } from 'expo-router';
@@ -8,7 +8,6 @@ import {
   Box,
   HStack,
   VStack,
-  Heading,
   Text,
   Pressable,
   Spinner,
@@ -16,15 +15,11 @@ import {
   InputField,
   Button,
   ButtonText,
-  Textarea,
-  TextareaInput,
 } from '@gluestack-ui/themed';
 import {
-  ArrowLeft,
-  Send,
-  Info,
-} from 'lucide-react-native';
-import { testTwilioWhatsApp } from '@/services/whatsapp-settings.service';
+  getWhatsAppSettings,
+  updateWhatsAppSettings,
+} from '@/services/whatsapp-settings.service';
 
 export default function WhatsAppSettingsScreen() {
   const { t, i18n } = useTranslation('settings');
@@ -32,326 +27,267 @@ export default function WhatsAppSettingsScreen() {
   const router = useRouter();
   const isRTL = i18n.language === 'ar';
 
-  const [testing, setTesting] = useState(false);
-  const [formData, setFormData] = useState({
-    accountSid: '',
-    authToken: '',
-    fromNumber: '',
-    toNumber: '',
-    message: '',
-  });
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [saving, setSaving] = useState(false);
 
-  const updateField = (field: string, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
-  };
+  // Settings state
+  const [whatsappNumber, setWhatsappNumber] = useState('');
+  const [whatsappLanguage, setWhatsappLanguage] = useState<'ar' | 'en'>('ar');
 
-  const handleTest = async () => {
-    // Validation
-    if (!formData.accountSid.trim()) {
-      Alert.alert(t('error'), t('account_sid_required'));
-      return;
-    }
-    if (!formData.authToken.trim()) {
-      Alert.alert(t('error'), t('auth_token_required'));
-      return;
-    }
-    if (!formData.fromNumber.trim()) {
-      Alert.alert(t('error'), t('from_number_required'));
-      return;
-    }
-    if (!formData.toNumber.trim()) {
-      Alert.alert(t('error'), t('to_number_required'));
-      return;
-    }
+  // Track original values to detect changes
+  const [originalWhatsappNumber, setOriginalWhatsappNumber] = useState('');
+  const [originalWhatsappLanguage, setOriginalWhatsappLanguage] = useState<'ar' | 'en'>('ar');
 
+  // Check if there are any changes
+  const hasChanges =
+    whatsappNumber.trim() !== originalWhatsappNumber ||
+    whatsappLanguage !== originalWhatsappLanguage;
+
+  // Load settings
+  const loadSettings = useCallback(async (isRefresh = false) => {
     try {
-      haptics.light();
-      setTesting(true);
-
-      const result = await testTwilioWhatsApp({
-        accountSid: formData.accountSid.trim(),
-        authToken: formData.authToken.trim(),
-        fromNumber: formData.fromNumber.trim(),
-        toNumber: formData.toNumber.trim(),
-        message: formData.message.trim() || undefined,
-      });
-
-      if (result.success) {
-        haptics.success();
-        Alert.alert(
-          t('success'),
-          t('whatsapp_test_success') + '\n\n' + (result.message || '')
-        );
+      if (isRefresh) {
+        haptics.light();
+        setRefreshing(true);
       } else {
-        haptics.error();
-        Alert.alert(t('error'), result.error || t('whatsapp_test_failed'));
+        setLoading(true);
+      }
+
+      const data = await getWhatsAppSettings();
+      const number = data.whatsappNumber || '';
+      const language = data.whatsappLanguage || 'ar';
+
+      setWhatsappNumber(number);
+      setWhatsappLanguage(language);
+
+      // Update original values
+      setOriginalWhatsappNumber(number);
+      setOriginalWhatsappLanguage(language);
+
+      if (isRefresh) {
+        haptics.success();
       }
     } catch (error: any) {
-      haptics.error();
-      console.error('WhatsApp test error:', error);
-      Alert.alert(t('error'), error.message || t('whatsapp_test_failed'));
+      if (isRefresh) {
+        haptics.error();
+      }
+      console.error('Load WhatsApp settings error:', error);
+      Alert.alert(t('error'), error.message || t('load_error'));
     } finally {
-      setTesting(false);
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [t]);
+
+  useEffect(() => {
+    loadSettings();
+  }, [loadSettings]);
+
+  // Save settings
+  const handleSave = async () => {
+    try {
+      haptics.light();
+      setSaving(true);
+
+      await updateWhatsAppSettings({
+        whatsappNumber: whatsappNumber.trim(),
+        whatsappLanguage,
+      });
+
+      // Update original values after successful save
+      setOriginalWhatsappNumber(whatsappNumber.trim());
+      setOriginalWhatsappLanguage(whatsappLanguage);
+
+      haptics.success();
+      Alert.alert(t('success'), t('settings_saved_successfully'));
+    } catch (error: any) {
+      haptics.error();
+      Alert.alert(t('error'), error.message || t('failed_to_save_settings'));
+    } finally {
+      setSaving(false);
     }
   };
+
+  if (loading) {
+    return (
+      <Box flex={1} bg="$backgroundLight" $dark-bg="$backgroundDark" alignItems="center" justifyContent="center">
+        <Spinner size="large" color="$primary500" />
+        <Text mt="$4" color="$textSecondaryLight" $dark-color="$textSecondaryDark">
+          {t('loading')}
+        </Text>
+      </Box>
+    );
+  }
 
   return (
     <Box flex={1} bg="$backgroundLight" $dark-bg="$backgroundDark">
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingTop: 60, paddingBottom: 100 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => loadSettings(true)}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        }
       >
         <Box px="$4">
-          <VStack space="lg">
-            {/* Info Card */}
-            <Box
-              bg="$blue50"
-              $dark-bg="rgba(59, 130, 246, 0.1)"
-              borderRadius="$2xl"
-              p="$4"
-            >
-              <HStack space="sm" alignItems="flex-start" flexDirection={isRTL ? 'row-reverse' : 'row'}>
-                <Box
-                  w={40}
-                  h={40}
-                  borderRadius="$full"
-                  bg="$blue100"
-                  $dark-bg="rgba(59, 130, 246, 0.2)"
-                  alignItems="center"
-                  justifyContent="center"
-                >
-                  <Info size={20} color={colors.blue500} strokeWidth={2.5} />
-                </Box>
-                <VStack flex={1} space="xs">
-                  <Text
-                    fontSize="$md"
-                    fontWeight="$semibold"
-                    color="$blue700"
-                    $dark-color="$blue400"
-                    textAlign={isRTL ? 'right' : 'left'}
-                  >
-                    {t('whatsapp_info_title')}
-                  </Text>
-                  <Text
-                    fontSize="$sm"
-                    color="$blue600"
-                    $dark-color="$blue300"
-                    textAlign={isRTL ? 'right' : 'left'}
-                    lineHeight="$sm"
-                  >
-                    {t('whatsapp_info_description')}
-                  </Text>
-                </VStack>
-              </HStack>
-            </Box>
-
-            {/* Form Section */}
+          <VStack space="md">
+            {/* WhatsApp Settings Card */}
             <Box
               bg="$surfaceLight"
               $dark-bg="$surfaceDark"
               borderRadius="$2xl"
-              p="$4"
+              overflow="hidden"
             >
-              <VStack space="md">
-                {/* Account SID */}
-                <VStack space="xs">
-                  <HStack space="xs" alignItems="center" flexDirection={isRTL ? 'row-reverse' : 'row'}>
+              <VStack>
+                {/* WhatsApp Number */}
+                <Box px="$4" py="$4" borderBottomWidth={1} borderBottomColor="$borderLight" $dark-borderBottomColor="$borderDark">
+                  <VStack space="sm">
                     <Text
                       fontSize="$sm"
-                      fontWeight="$medium"
-                      color="$textLight"
-                      $dark-color="$textDark"
-                    >
-                      {t('account_sid')}
-                    </Text>
-                    <Text fontSize="$sm" color="$error500">*</Text>
-                  </HStack>
-                  <Input
-                    borderRadius="$xl"
-                    borderColor="$borderLight"
-                    $dark-borderColor="$borderDark"
-                    bg="$backgroundLight"
-                    $dark-bg="$backgroundDark"
-                  >
-                    <InputField
-                      value={formData.accountSid}
-                      onChangeText={(text) => updateField('accountSid', text)}
-                      placeholder={t('enter_account_sid')}
+                      fontWeight="$semibold"
                       color="$textLight"
                       $dark-color="$textDark"
                       textAlign={isRTL ? 'right' : 'left'}
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                    />
-                  </Input>
-                </VStack>
+                    >
+                      {t('whatsapp_number') || 'WhatsApp Number'}
+                    </Text>
+                    <Input
+                      size="lg"
+                      variant="outline"
+                      borderRadius="$xl"
+                      borderColor="$borderLight"
+                      $dark-borderColor="$borderDark"
+                      bg="$backgroundLight"
+                      $dark-bg="$backgroundDark"
+                      $focus-borderColor="$primary500"
+                    >
+                      <InputField
+                        value={whatsappNumber}
+                        onChangeText={setWhatsappNumber}
+                        placeholder="+9647XXXXXXXXX"
+                        placeholderTextColor={colors.textSecondary}
+                        color="$textLight"
+                        $dark-color="$textDark"
+                        textAlign={isRTL ? 'right' : 'left'}
+                        keyboardType="phone-pad"
+                      />
+                    </Input>
+                    <Text
+                      fontSize="$xs"
+                      color="$textSecondaryLight"
+                      $dark-color="$textSecondaryDark"
+                      textAlign={isRTL ? 'right' : 'left'}
+                    >
+                      {t('whatsapp_number_hint') || 'Include country code (e.g., +964...)'}
+                    </Text>
+                  </VStack>
+                </Box>
 
-                {/* Auth Token */}
-                <VStack space="xs">
-                  <HStack space="xs" alignItems="center" flexDirection={isRTL ? 'row-reverse' : 'row'}>
+                {/* WhatsApp Notification Language */}
+                <Box px="$4" py="$4" borderBottomWidth={1} borderBottomColor="$borderLight" $dark-borderBottomColor="$borderDark">
+                  <VStack space="sm">
                     <Text
                       fontSize="$sm"
-                      fontWeight="$medium"
-                      color="$textLight"
-                      $dark-color="$textDark"
-                    >
-                      {t('auth_token')}
-                    </Text>
-                    <Text fontSize="$sm" color="$error500">*</Text>
-                  </HStack>
-                  <Input
-                    borderRadius="$xl"
-                    borderColor="$borderLight"
-                    $dark-borderColor="$borderDark"
-                    bg="$backgroundLight"
-                    $dark-bg="$backgroundDark"
-                  >
-                    <InputField
-                      value={formData.authToken}
-                      onChangeText={(text) => updateField('authToken', text)}
-                      placeholder={t('enter_auth_token')}
+                      fontWeight="$semibold"
                       color="$textLight"
                       $dark-color="$textDark"
                       textAlign={isRTL ? 'right' : 'left'}
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                      type="password"
-                    />
-                  </Input>
-                </VStack>
+                    >
+                      {t('whatsapp_notification_language') || 'WhatsApp Notification Language'}
+                    </Text>
+                    <HStack space="sm">
+                      {/* Arabic Button */}
+                      <Pressable
+                        flex={1}
+                        onPress={() => {
+                          setWhatsappLanguage('ar');
+                          haptics.light();
+                        }}
+                        bg={whatsappLanguage === 'ar' ? '$primary500' : '$backgroundLight'}
+                        $dark-bg={whatsappLanguage === 'ar' ? '$primary500' : '$backgroundDark'}
+                        borderRadius="$xl"
+                        borderWidth={1}
+                        borderColor={whatsappLanguage === 'ar' ? '$primary500' : '$borderLight'}
+                        $dark-borderColor={whatsappLanguage === 'ar' ? '$primary500' : '$borderDark'}
+                        py="$3"
+                        alignItems="center"
+                        justifyContent="center"
+                      >
+                        <Text
+                          fontSize="$md"
+                          fontWeight="$semibold"
+                          color={whatsappLanguage === 'ar' ? '$white' : '$textLight'}
+                          $dark-color={whatsappLanguage === 'ar' ? '$white' : '$textDark'}
+                        >
+                          العربية
+                        </Text>
+                      </Pressable>
 
-                {/* From Number */}
-                <VStack space="xs">
-                  <HStack space="xs" alignItems="center" flexDirection={isRTL ? 'row-reverse' : 'row'}>
+                      {/* English Button */}
+                      <Pressable
+                        flex={1}
+                        onPress={() => {
+                          setWhatsappLanguage('en');
+                          haptics.light();
+                        }}
+                        bg={whatsappLanguage === 'en' ? '$primary500' : '$backgroundLight'}
+                        $dark-bg={whatsappLanguage === 'en' ? '$primary500' : '$backgroundDark'}
+                        borderRadius="$xl"
+                        borderWidth={1}
+                        borderColor={whatsappLanguage === 'en' ? '$primary500' : '$borderLight'}
+                        $dark-borderColor={whatsappLanguage === 'en' ? '$primary500' : '$borderDark'}
+                        py="$3"
+                        alignItems="center"
+                        justifyContent="center"
+                      >
+                        <Text
+                          fontSize="$md"
+                          fontWeight="$semibold"
+                          color={whatsappLanguage === 'en' ? '$white' : '$textLight'}
+                          $dark-color={whatsappLanguage === 'en' ? '$white' : '$textDark'}
+                        >
+                          English
+                        </Text>
+                      </Pressable>
+                    </HStack>
                     <Text
-                      fontSize="$sm"
-                      fontWeight="$medium"
-                      color="$textLight"
-                      $dark-color="$textDark"
+                      fontSize="$xs"
+                      color="$textSecondaryLight"
+                      $dark-color="$textSecondaryDark"
+                      textAlign={isRTL ? 'right' : 'left'}
                     >
-                      {t('from_number')}
+                      {t('whatsapp_language_hint') || 'Language for WhatsApp order notifications and OTP messages'}
                     </Text>
-                    <Text fontSize="$sm" color="$error500">*</Text>
-                  </HStack>
-                  <Input
-                    borderRadius="$xl"
-                    borderColor="$borderLight"
-                    $dark-borderColor="$borderDark"
-                    bg="$backgroundLight"
-                    $dark-bg="$backgroundDark"
-                  >
-                    <InputField
-                      value={formData.fromNumber}
-                      onChangeText={(text) => updateField('fromNumber', text)}
-                      placeholder="+14155238886"
-                      color="$textLight"
-                      $dark-color="$textDark"
-                      textAlign={isRTL ? 'right' : 'left'}
-                      keyboardType="phone-pad"
-                    />
-                  </Input>
-                  <Text
-                    fontSize="$xs"
-                    color="$textSecondaryLight"
-                    $dark-color="$textSecondaryDark"
-                    textAlign={isRTL ? 'right' : 'left'}
-                  >
-                    {t('from_number_hint')}
-                  </Text>
-                </VStack>
-
-                {/* To Number */}
-                <VStack space="xs">
-                  <HStack space="xs" alignItems="center" flexDirection={isRTL ? 'row-reverse' : 'row'}>
-                    <Text
-                      fontSize="$sm"
-                      fontWeight="$medium"
-                      color="$textLight"
-                      $dark-color="$textDark"
-                    >
-                      {t('to_number')}
-                    </Text>
-                    <Text fontSize="$sm" color="$error500">*</Text>
-                  </HStack>
-                  <Input
-                    borderRadius="$xl"
-                    borderColor="$borderLight"
-                    $dark-borderColor="$borderDark"
-                    bg="$backgroundLight"
-                    $dark-bg="$backgroundDark"
-                  >
-                    <InputField
-                      value={formData.toNumber}
-                      onChangeText={(text) => updateField('toNumber', text)}
-                      placeholder="+9647XXXXXXXXX"
-                      color="$textLight"
-                      $dark-color="$textDark"
-                      textAlign={isRTL ? 'right' : 'left'}
-                      keyboardType="phone-pad"
-                    />
-                  </Input>
-                  <Text
-                    fontSize="$xs"
-                    color="$textSecondaryLight"
-                    $dark-color="$textSecondaryDark"
-                    textAlign={isRTL ? 'right' : 'left'}
-                  >
-                    {t('to_number_hint')}
-                  </Text>
-                </VStack>
-
-                {/* Test Message */}
-                <VStack space="xs">
-                  <Text
-                    fontSize="$sm"
-                    fontWeight="$medium"
-                    color="$textLight"
-                    $dark-color="$textDark"
-                    textAlign={isRTL ? 'right' : 'left'}
-                  >
-                    {t('test_message')} ({t('optional')})
-                  </Text>
-                  <Textarea
-                    borderRadius="$xl"
-                    borderColor="$borderLight"
-                    $dark-borderColor="$borderDark"
-                    bg="$backgroundLight"
-                    $dark-bg="$backgroundDark"
-                    minHeight={100}
-                  >
-                    <TextareaInput
-                      value={formData.message}
-                      onChangeText={(text) => updateField('message', text)}
-                      placeholder={t('enter_test_message')}
-                      color="$textLight"
-                      $dark-color="$textDark"
-                      textAlign={isRTL ? 'right' : 'left'}
-                    />
-                  </Textarea>
-                </VStack>
+                  </VStack>
+                </Box>
               </VStack>
             </Box>
 
-            {/* Test Button */}
-            <Button
-              size="lg"
-              bg="$primary500"
-              borderRadius="$2xl"
-              onPress={handleTest}
-              isDisabled={testing}
-              mt="$4"
-            >
-              {testing ? (
-                <Spinner color="#FFFFFF" />
-              ) : (
-                <HStack space="sm" alignItems="center">
-                  <Send size={20} color="#FFFFFF" strokeWidth={2.5} />
-                  <ButtonText fontSize="$md" fontWeight="$bold" color="$white">
-                    {t('send_test_message')}
+            {/* Save Button - Only show when there are changes */}
+            {hasChanges && (
+              <Button
+                size="lg"
+                bg="$primary500"
+                borderRadius="$2xl"
+                onPress={handleSave}
+                isDisabled={saving}
+                $hover-bg="$primary600"
+                $active-bg="$primary700"
+              >
+                {saving ? (
+                  <Spinner color="$white" />
+                ) : (
+                  <ButtonText fontSize="$md" fontWeight="$bold">
+                    {t('save_settings') || 'Save Settings'}
                   </ButtonText>
-                </HStack>
-              )}
-            </Button>
+                )}
+              </Button>
+            )}
           </VStack>
         </Box>
       </ScrollView>

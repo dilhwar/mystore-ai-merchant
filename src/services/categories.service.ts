@@ -1,4 +1,4 @@
-import { apiGet, apiPost, apiPut, apiDelete } from './api';
+import { apiGet, apiPost, apiPut, apiPatch, apiDelete } from './api';
 
 export interface CategoryTranslations {
   [languageCode: string]: {
@@ -157,7 +157,7 @@ export const toggleCategoryStatus = async (
   isActive: boolean
 ): Promise<Category> => {
   try {
-    const response = await apiPut<CategoryResponse>(`/categories/${categoryId}/status`, {
+    const response = await apiPatch<CategoryResponse>(`/categories/${categoryId}/status`, {
       isActive,
     });
 

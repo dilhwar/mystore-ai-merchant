@@ -19,11 +19,9 @@ import {
   InputField,
 } from '@gluestack-ui/themed';
 import {
-  ArrowLeft,
   Globe,
   DollarSign,
   Languages,
-  MapPin,
   ChevronDown,
   Save,
   Check,
@@ -62,29 +60,12 @@ const LANGUAGES = [
   { code: 'ar', name: 'Arabic', nameAr: 'العربية' },
 ];
 
-// Country codes
-const COUNTRY_CODES = [
-  { code: '+966', country: 'Saudi Arabia', countryAr: 'السعودية' },
-  { code: '+971', country: 'UAE', countryAr: 'الإمارات' },
-  { code: '+965', country: 'Kuwait', countryAr: 'الكويت' },
-  { code: '+974', country: 'Qatar', countryAr: 'قطر' },
-  { code: '+973', country: 'Bahrain', countryAr: 'البحرين' },
-  { code: '+968', country: 'Oman', countryAr: 'عمان' },
-  { code: '+964', country: 'Iraq', countryAr: 'العراق' },
-  { code: '+20', country: 'Egypt', countryAr: 'مصر' },
-  { code: '+962', country: 'Jordan', countryAr: 'الأردن' },
-  { code: '+1', country: 'USA/Canada', countryAr: 'أمريكا/كندا' },
-  { code: '+44', country: 'UK', countryAr: 'بريطانيا' },
-];
-
 // Types
 interface StoreSettings {
   id: string;
   storeId: string;
   currency: string;
   language: string;
-  defaultCountryCode: string;
-  whatsappLanguage?: string;
 }
 
 interface StoreWithSettings {
@@ -100,8 +81,6 @@ interface UpdateStoreSettingsData {
   currency?: string;
   language?: string;
   languages?: string[];
-  defaultCountryCode?: string;
-  whatsappLanguage?: string;
 }
 
 export default function StoreSettingsScreen() {
@@ -120,15 +99,11 @@ export default function StoreSettingsScreen() {
   const [currency, setCurrency] = useState('SAR');
   const [defaultLanguage, setDefaultLanguage] = useState('ar');
   const [supportedLanguages, setSupportedLanguages] = useState<string[]>(['en', 'ar']);
-  const [defaultCountryCode, setDefaultCountryCode] = useState('+966');
-  const [whatsappLanguage, setWhatsappLanguage] = useState('ar');
 
   // Modal states
   const [currencyModalVisible, setCurrencyModalVisible] = useState(false);
   const [languageModalVisible, setLanguageModalVisible] = useState(false);
   const [supportedLanguagesModalVisible, setSupportedLanguagesModalVisible] = useState(false);
-  const [countryCodeModalVisible, setCountryCodeModalVisible] = useState(false);
-  const [whatsappLanguageModalVisible, setWhatsappLanguageModalVisible] = useState(false);
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -139,8 +114,6 @@ export default function StoreSettingsScreen() {
     currency: 'SAR',
     defaultLanguage: 'ar',
     supportedLanguages: ['en', 'ar'],
-    defaultCountryCode: '+966',
-    whatsappLanguage: 'ar',
   });
 
   useEffect(() => {
@@ -154,12 +127,10 @@ export default function StoreSettingsScreen() {
     const changed =
       currency !== originalSettings.currency ||
       defaultLanguage !== originalSettings.defaultLanguage ||
-      languagesChanged ||
-      defaultCountryCode !== originalSettings.defaultCountryCode ||
-      whatsappLanguage !== originalSettings.whatsappLanguage;
+      languagesChanged;
 
     setHasChanges(changed);
-  }, [currency, defaultLanguage, supportedLanguages, defaultCountryCode, whatsappLanguage, originalSettings]);
+  }, [currency, defaultLanguage, supportedLanguages, originalSettings]);
 
   const loadStoreSettings = async (isRefresh = false) => {
     try {
@@ -197,15 +168,11 @@ export default function StoreSettingsScreen() {
           currency: storeData.settings.currency || 'SAR',
           defaultLanguage: storeData.settings.language || 'ar',
           supportedLanguages: languages,
-          defaultCountryCode: storeData.settings.defaultCountryCode || '+966',
-          whatsappLanguage: storeData.settings.whatsappLanguage || 'ar',
         };
 
         setCurrency(loadedSettings.currency);
         setDefaultLanguage(loadedSettings.defaultLanguage);
         setSupportedLanguages(loadedSettings.supportedLanguages);
-        setDefaultCountryCode(loadedSettings.defaultCountryCode);
-        setWhatsappLanguage(loadedSettings.whatsappLanguage);
 
         // Store original settings
         setOriginalSettings(loadedSettings);
@@ -242,8 +209,6 @@ export default function StoreSettingsScreen() {
         currency,
         language: defaultLanguage,
         languages: supportedLanguages,
-        defaultCountryCode,
-        whatsappLanguage,
       };
 
       // Update store settings
@@ -276,12 +241,6 @@ export default function StoreSettingsScreen() {
     return currentLanguage === 'ar' ? lang.nameAr : lang.name;
   };
 
-  // Helper function to get country code label
-  const getCountryCodeLabel = (code: string) => {
-    const country = COUNTRY_CODES.find(c => c.code === code);
-    if (!country) return code;
-    return currentLanguage === 'ar' ? `${country.countryAr} (${country.code})` : `${country.country} (${country.code})`;
-  };
 
   // Helper function to get supported languages label
   const getSupportedLanguagesLabel = () => {
@@ -756,100 +715,6 @@ export default function StoreSettingsScreen() {
               </VStack>
             </Box>
 
-            {/* Country Code */}
-            <Box bg="$surfaceLight" $dark-bg="$surfaceDark" borderRadius="$2xl" p="$4">
-              <VStack space="md">
-                <HStack alignItems="center" space="md" flexDirection={isRTL ? 'row-reverse' : 'row'}>
-                  <Box
-                    w={48}
-                    h={48}
-                    borderRadius="$xl"
-                    alignItems="center"
-                    justifyContent="center"
-                    style={{ backgroundColor: isDark ? 'rgba(245, 158, 11, 0.2)' : 'rgba(245, 158, 11, 0.1)' }}
-                  >
-                    <MapPin size={24} color="#f59e0b" strokeWidth={2.5} />
-                  </Box>
-                  <VStack flex={1}>
-                    <Text fontSize="$md" fontWeight="$semibold" color="$textLight" $dark-color="$textDark" textAlign={isRTL ? 'right' : 'left'}>
-                      {t('default_country_code')}
-                    </Text>
-                    <Text fontSize="$xs" color="$textSecondaryLight" $dark-color="$textSecondaryDark" textAlign={isRTL ? 'right' : 'left'}>
-                      {t('default_country_code_description')}
-                    </Text>
-                  </VStack>
-                </HStack>
-                <Pressable
-                  onPress={() => {
-                    haptics.light();
-                    setCountryCodeModalVisible(true);
-                  }}
-                  borderRadius="$xl"
-                  borderWidth={1}
-                  borderColor="$borderLight"
-                  $dark-borderColor="$borderDark"
-                  bg="$backgroundLight"
-                  $dark-bg="$backgroundDark"
-                  px="$4"
-                  py="$3.5"
-                >
-                  <HStack alignItems="center" justifyContent="space-between" flexDirection={isRTL ? 'row-reverse' : 'row'}>
-                    <Text fontSize="$md" color="$textLight" $dark-color="$textDark">
-                      {getCountryCodeLabel(defaultCountryCode)}
-                    </Text>
-                    <ChevronDown size={20} color={colors.text} />
-                  </HStack>
-                </Pressable>
-              </VStack>
-            </Box>
-
-            {/* WhatsApp Language */}
-            <Box bg="$surfaceLight" $dark-bg="$surfaceDark" borderRadius="$2xl" p="$4">
-              <VStack space="md">
-                <HStack alignItems="center" space="md" flexDirection={isRTL ? 'row-reverse' : 'row'}>
-                  <Box
-                    w={48}
-                    h={48}
-                    borderRadius="$xl"
-                    alignItems="center"
-                    justifyContent="center"
-                    style={{ backgroundColor: isDark ? 'rgba(236, 72, 153, 0.2)' : 'rgba(236, 72, 153, 0.1)' }}
-                  >
-                    <Languages size={24} color="#ec4899" strokeWidth={2.5} />
-                  </Box>
-                  <VStack flex={1}>
-                    <Text fontSize="$md" fontWeight="$semibold" color="$textLight" $dark-color="$textDark" textAlign={isRTL ? 'right' : 'left'}>
-                      {t('whatsapp_language')}
-                    </Text>
-                    <Text fontSize="$xs" color="$textSecondaryLight" $dark-color="$textSecondaryDark" textAlign={isRTL ? 'right' : 'left'}>
-                      {t('whatsapp_language_description')}
-                    </Text>
-                  </VStack>
-                </HStack>
-                <Pressable
-                  onPress={() => {
-                    haptics.light();
-                    setWhatsappLanguageModalVisible(true);
-                  }}
-                  borderRadius="$xl"
-                  borderWidth={1}
-                  borderColor="$borderLight"
-                  $dark-borderColor="$borderDark"
-                  bg="$backgroundLight"
-                  $dark-bg="$backgroundDark"
-                  px="$4"
-                  py="$3.5"
-                >
-                  <HStack alignItems="center" justifyContent="space-between" flexDirection={isRTL ? 'row-reverse' : 'row'}>
-                    <Text fontSize="$md" color="$textLight" $dark-color="$textDark">
-                      {getLanguageLabel(whatsappLanguage)}
-                    </Text>
-                    <ChevronDown size={20} color={colors.text} />
-                  </HStack>
-                </Pressable>
-              </VStack>
-            </Box>
-
             {/* Save Button */}
             <Button
               size="lg"
@@ -1043,30 +908,6 @@ export default function StoreSettingsScreen() {
           </Pressable>
         </Pressable>
       </Modal>
-
-      {renderPickerModal(
-        countryCodeModalVisible,
-        () => setCountryCodeModalVisible(false),
-        COUNTRY_CODES,
-        defaultCountryCode,
-        setDefaultCountryCode,
-        (item) => currentLanguage === 'ar' ? `${item.countryAr} (${item.code})` : `${item.country} (${item.code})`,
-        'code',
-        t('select_country_code'),
-        true,
-        '75%'
-      )}
-
-      {renderPickerModal(
-        whatsappLanguageModalVisible,
-        () => setWhatsappLanguageModalVisible(false),
-        LANGUAGES,
-        whatsappLanguage,
-        setWhatsappLanguage,
-        (item) => currentLanguage === 'ar' ? item.nameAr : item.name,
-        'code',
-        t('select_language')
-      )}
     </Box>
   );
 }
