@@ -17,7 +17,7 @@ interface DynamicLanguageFieldsProps {
 /**
  * Dynamic Language Fields Component
  * Renders input fields for all store languages dynamically
- * First language field is marked as required
+ * Fields are reordered based on current app language (current language first)
  */
 export function DynamicLanguageFields({
   fieldName,
@@ -32,29 +32,44 @@ export function DynamicLanguageFields({
   const { storeLanguages } = useAuthStore();
   const isRTL = i18n.language === 'ar';
 
+  // Reorder languages to put current language first
+  const currentLangIndex = storeLanguages.indexOf(i18n.language);
+  const orderedLanguages = currentLangIndex >= 0
+    ? [
+        storeLanguages[currentLangIndex],
+        ...storeLanguages.filter((_, idx) => idx !== currentLangIndex)
+      ]
+    : storeLanguages;
+
   return (
     <>
-      {storeLanguages.map((lang, index) => {
+      {orderedLanguages.map((lang) => {
+        const index = storeLanguages.indexOf(lang);
         const field = getFieldName(index, fieldName, lang);
-        const isRequired = index === 0; // First language is required
+        const isCurrentLang = lang === i18n.language;
         const isRTLLang = lang === 'ar';
+
+        // Get label based on language
+        const label = lang === 'ar' ?
+          (i18n.language === 'ar' ? t(fieldName) : `${t(fieldName)} (عربي)`) :
+          (i18n.language === 'en' ? t(fieldName) : `${t(fieldName)} (English)`);
 
         return (
           <VStack key={lang} space="xs">
             <Text
               fontSize="$sm"
-              fontWeight="$medium"
-              color="$textLight"
-              $dark-color="$textDark"
+              fontWeight={isCurrentLang ? '$semibold' : '$medium'}
+              color={isCurrentLang ? '$primary500' : '$textLight'}
+              $dark-color={isCurrentLang ? '$primary500' : '$textDark'}
               textAlign={isRTL ? 'right' : 'left'}
             >
-              {t(fieldName)} ({lang.toUpperCase()}) {isRequired && '*'}
+              {label}
             </Text>
             {multiline ? (
               <Textarea
                 borderRadius="$xl"
-                borderColor="$borderLight"
-                $dark-borderColor="$borderDark"
+                borderColor={isCurrentLang ? '$primary500' : '$borderLight'}
+                $dark-borderColor={isCurrentLang ? '$primary500' : '$borderDark'}
                 bg="$backgroundLight"
                 $dark-bg="$backgroundDark"
                 minHeight={minHeight}
@@ -66,15 +81,15 @@ export function DynamicLanguageFields({
                   placeholder={placeholder}
                   color="$textLight"
                   $dark-color="$textDark"
-                  textAlign={isRTLLang ? 'right' : (isRTL ? 'right' : 'left')}
+                  textAlign={isRTLLang ? 'right' : 'left'}
                   isDisabled={disabled}
                 />
               </Textarea>
             ) : (
               <Input
                 borderRadius="$xl"
-                borderColor="$borderLight"
-                $dark-borderColor="$borderDark"
+                borderColor={isCurrentLang ? '$primary500' : '$borderLight'}
+                $dark-borderColor={isCurrentLang ? '$primary500' : '$borderDark'}
                 bg="$backgroundLight"
                 $dark-bg="$backgroundDark"
                 opacity={disabled ? 0.6 : 1}
@@ -85,7 +100,7 @@ export function DynamicLanguageFields({
                   placeholder={placeholder}
                   color="$textLight"
                   $dark-color="$textDark"
-                  textAlign={isRTLLang ? 'right' : (isRTL ? 'right' : 'left')}
+                  textAlign={isRTLLang ? 'right' : 'left'}
                   isDisabled={disabled}
                 />
               </Input>

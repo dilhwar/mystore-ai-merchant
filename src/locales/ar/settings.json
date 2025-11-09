@@ -107,6 +107,10 @@
   "wallet_account_name": "اسم حساب المحفظة",
   "qr_code_url": "رابط رمز QR",
   "payment_link": "رابط الدفع المباشر",
+  "paypal_email": "بريد PayPal الإلكتروني",
+  "paypal_merchant_id": "معرّف تاجر PayPal (اختياري)",
+  "stripe_publishable_key": "مفتاح Stripe العام",
+  "stripe_secret_key": "مفتاح Stripe السري",
 
   "form_fields": "حقول النموذج",
   "form_fields_description": "تخصيص حقول نموذج الدفع",

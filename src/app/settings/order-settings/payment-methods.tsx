@@ -164,13 +164,12 @@ export default function PaymentMethodsScreen() {
                 w={80}
                 h={80}
                 borderRadius="$full"
-                bg="$green50"
-                $dark-bg="rgba(34, 197, 94, 0.15)"
+                bg={isDark ? 'rgba(48, 209, 88, 0.15)' : 'rgba(16, 185, 129, 0.1)'}
                 alignItems="center"
                 justifyContent="center"
                 mb="$6"
               >
-                <CreditCard size={40} color={colors.green500} strokeWidth={2} />
+                <CreditCard size={40} color={colors.success} strokeWidth={2} />
               </Box>
               <Heading
                 size="lg"
@@ -268,14 +267,13 @@ export default function PaymentMethodsScreen() {
                               w={48}
                               h={48}
                               borderRadius="$xl"
-                              bg={method.isActive ? '$green50' : '$gray100'}
-                              $dark-bg={method.isActive ? 'rgba(34, 197, 94, 0.15)' : 'rgba(255, 255, 255, 0.05)'}
+                              bg={method.enabled ? (isDark ? 'rgba(48, 209, 88, 0.15)' : 'rgba(16, 185, 129, 0.1)') : (isDark ? 'rgba(255, 255, 255, 0.05)' : '#F3F4F6')}
                               alignItems="center"
                               justifyContent="center"
                             >
                               <CreditCard
                                 size={24}
-                                color={method.isActive ? colors.green500 : colors.textSecondary}
+                                color={method.enabled ? colors.success : colors.textSecondary}
                                 strokeWidth={2}
                               />
                             </Box>
@@ -309,7 +307,7 @@ export default function PaymentMethodsScreen() {
                                     </Text>
                                   </Box>
                                 )}
-                                {!method.isActive && (
+                                {!method.enabled && (
                                   <Box
                                     px="$2"
                                     py="$0.5"
@@ -351,10 +349,9 @@ export default function PaymentMethodsScreen() {
                                 borderRadius="$xl"
                                 alignItems="center"
                                 justifyContent="center"
-                                bg="$green50"
-                                $dark-bg="rgba(34, 197, 94, 0.15)"
+                                bg={isDark ? 'rgba(48, 209, 88, 0.15)' : 'rgba(16, 185, 129, 0.1)'}
                               >
-                                <Edit2 size={18} color={colors.green500} strokeWidth={2.5} />
+                                <Edit2 size={18} color={colors.success} strokeWidth={2.5} />
                               </Pressable>
                               {!method.isBuiltIn && (
                                 <Pressable

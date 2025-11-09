@@ -65,6 +65,13 @@ api.interceptors.request.use(
         config.headers.Authorization = `Bearer ${token}`;
       }
 
+      // Debug log for product creation
+      if (config.url?.includes('/products') && config.method === 'post') {
+        console.log('🚀 [API] Sending POST /products request');
+        console.log('🚀 [API] Request data:', JSON.stringify(config.data, null, 2));
+        console.log('🚀 [API] Request headers:', config.headers['Content-Type']);
+      }
+
       return config;
     } catch (error) {
       console.error('Error in request interceptor:', error);

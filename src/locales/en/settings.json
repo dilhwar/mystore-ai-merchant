@@ -108,6 +108,10 @@
   "wallet_account_name": "Wallet Account Name",
   "qr_code_url": "QR Code URL",
   "payment_link": "Direct Payment Link",
+  "paypal_email": "PayPal Email",
+  "paypal_merchant_id": "PayPal Merchant ID (Optional)",
+  "stripe_publishable_key": "Stripe Publishable Key",
+  "stripe_secret_key": "Stripe Secret Key",
 
   "form_fields": "Form Fields",
   "form_fields_description": "Manage which fields are displayed and required during checkout.",

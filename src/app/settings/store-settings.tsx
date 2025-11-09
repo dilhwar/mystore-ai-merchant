@@ -3,6 +3,7 @@ import { ScrollView, Alert, RefreshControl, Modal, FlatList, TouchableOpacity, T
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/store/themeStore';
+import { useAuthStore } from '@/store/authStore';
 import { haptics } from '@/utils/haptics';
 import { apiGet, apiPut } from '@/services/api';
 import {
@@ -87,6 +88,7 @@ export default function StoreSettingsScreen() {
   const router = useRouter();
   const { t, i18n } = useTranslation('settings');
   const { colors, isDark } = useTheme();
+  const { setStoreSettings } = useAuthStore();
   const currentLanguage = i18n.language;
   const isRTL = currentLanguage === 'ar';
 
@@ -213,6 +215,9 @@ export default function StoreSettingsScreen() {
 
       // Update store settings
       await apiPut(`/stores/${storeId}/settings`, updates);
+
+      // Update authStore with new settings
+      setStoreSettings(supportedLanguages, defaultLanguage, currency);
 
       haptics.success();
       Alert.alert(t('success'), t('settings_saved_successfully'));

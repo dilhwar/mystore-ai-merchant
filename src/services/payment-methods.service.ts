@@ -15,6 +15,7 @@ export interface PaymentMethod {
   type: string;
   enabled: boolean;
   requireReceipt?: boolean;
+  processingFee?: number;
   // Bank Transfer specific fields
   bankName?: string;
   bankNameAr?: string;
@@ -33,6 +34,12 @@ export interface PaymentMethod {
   walletAccountNameAr?: string;
   qrCodeUrl?: string;
   paymentLink?: string;
+  // PayPal specific fields
+  paypalEmail?: string;
+  paypalMerchantId?: string;
+  // Stripe specific fields
+  stripePublishableKey?: string;
+  stripeSecretKey?: string;
   // Built-in identifier
   isBuiltIn?: boolean;
 }
@@ -66,6 +73,12 @@ export interface CreatePaymentMethodData {
   walletAccountNameAr?: string;
   qrCodeUrl?: string;
   paymentLink?: string;
+  // PayPal fields
+  paypalEmail?: string;
+  paypalMerchantId?: string;
+  // Stripe fields
+  stripePublishableKey?: string;
+  stripeSecretKey?: string;
 }
 
 export interface UpdatePaymentMethodData extends Partial<CreatePaymentMethodData> {
@@ -142,6 +155,7 @@ export const createPaymentMethod = async (
       instructionsAr: data.instructionsAr || '',
       enabled: data.enabled !== undefined ? data.enabled : true,
       requireReceipt: data.requireReceipt || false,
+      processingFee: data.feeAmount,
       // Bank Transfer fields
       bankName: data.bankName,
       bankNameAr: data.bankNameAr,
@@ -201,6 +215,7 @@ export const updatePaymentMethod = async (
             instructionsAr: data.instructionsAr !== undefined ? data.instructionsAr : m.instructionsAr,
             enabled: data.enabled !== undefined ? data.enabled : m.enabled,
             requireReceipt: data.requireReceipt !== undefined ? data.requireReceipt : m.requireReceipt,
+            processingFee: data.feeAmount !== undefined ? data.feeAmount : m.processingFee,
             // Bank Transfer fields
             bankName: data.bankName !== undefined ? data.bankName : m.bankName,
             bankNameAr: data.bankNameAr !== undefined ? data.bankNameAr : m.bankNameAr,

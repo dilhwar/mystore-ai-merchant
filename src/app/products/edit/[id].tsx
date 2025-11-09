@@ -370,8 +370,10 @@ export default function EditProductScreen() {
           throw new Error('Failed to upload images');
         }
 
-        // Add new uploaded images to final list
-        const newUploadedUrls = uploadedImages.map((img) => img.url);
+        // Add new uploaded images to final list (use medium size URL)
+        const newUploadedUrls = uploadedImages.map(
+          (img) => img.sizes?.medium?.url || img.sizes?.large?.url || img.sizes?.thumbnail?.url
+        ).filter((url) => url); // Filter out null/undefined
         finalImageUrls = [...finalImageUrls, ...newUploadedUrls];
       }
 

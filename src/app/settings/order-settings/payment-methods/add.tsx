@@ -4,8 +4,6 @@ import { useTranslation } from 'react-i18next';
 import { useTheme } from '@/store/themeStore';
 import { useRouter } from 'expo-router';
 import { haptics } from '@/utils/haptics';
-import { useDynamicForm } from '@/hooks/useDynamicForm';
-import { DynamicLanguageFields } from '@/components/forms/DynamicLanguageFields';
 import {
   Box,
   HStack,
@@ -28,6 +26,8 @@ import {
   Check,
 } from 'lucide-react-native';
 import { createPaymentMethod } from '@/services/payment-methods.service';
+import { useDynamicForm } from '@/hooks/useDynamicForm';
+import { DynamicLanguageFields } from '@/components/forms/DynamicLanguageFields';
 
 export default function AddPaymentMethodScreen() {
   const { t, i18n } = useTranslation('settings');
@@ -37,13 +37,6 @@ export default function AddPaymentMethodScreen() {
 
   const [loading, setLoading] = useState(false);
 
-  // Use dynamic form hook for language fields
-  const { formData, setFormData, buildPayload, validateRequiredFields } = useDynamicForm([
-    'name',
-    'description',
-    'instructions',
-  ]);
-
   const [processingFee, setProcessingFee] = useState('');
   const [isActive, setIsActive] = useState(true);
   const [paymentType, setPaymentType] = useState('CASH_ON_DELIVERY');
@@ -52,25 +45,26 @@ export default function AddPaymentMethodScreen() {
   // Additional fields based on payment type
   const [requireReceipt, setRequireReceipt] = useState(false);
 
-  // Bank Transfer fields
-  const [bankName, setBankName] = useState('');
-  const [bankNameAr, setBankNameAr] = useState('');
-  const [accountHolderName, setAccountHolderName] = useState('');
-  const [accountHolderNameAr, setAccountHolderNameAr] = useState('');
+  // Dynamic bilingual fields for Bank Transfer and E-Wallet
+  const { formData, setFormData, buildPayload } = useDynamicForm([
+    'bankName',
+    'accountHolderName',
+    'branch',
+    'walletProvider',
+    'walletAccountName',
+  ]);
+
+  // Non-bilingual fields
   const [accountNumber, setAccountNumber] = useState('');
   const [iban, setIban] = useState('');
   const [swiftCode, setSwiftCode] = useState('');
-  const [branch, setBranch] = useState('');
-  const [branchAr, setBranchAr] = useState('');
-
-  // E-Wallet fields
-  const [walletProvider, setWalletProvider] = useState('');
-  const [walletProviderAr, setWalletProviderAr] = useState('');
   const [walletNumber, setWalletNumber] = useState('');
-  const [walletAccountName, setWalletAccountName] = useState('');
-  const [walletAccountNameAr, setWalletAccountNameAr] = useState('');
   const [qrCodeUrl, setQrCodeUrl] = useState('');
   const [paymentLink, setPaymentLink] = useState('');
+  const [paypalEmail, setPaypalEmail] = useState('');
+  const [paypalMerchantId, setPaypalMerchantId] = useState('');
+  const [stripePublishableKey, setStripePublishableKey] = useState('');
+  const [stripeSecretKey, setStripeSecretKey] = useState('');
 
   // Available payment types (matching backend exactly)
   const paymentTypes = [
@@ -84,11 +78,6 @@ export default function AddPaymentMethodScreen() {
 
   // Validate form
   const validateForm = (): boolean => {
-    if (!validateRequiredFields()) {
-      Alert.alert(t('error'), t('name_required'));
-      return false;
-    }
-
     if (processingFee && (isNaN(Number(processingFee)) || Number(processingFee) < 0)) {
       Alert.alert(t('error'), t('fee_invalid'));
       return false;
@@ -107,32 +96,37 @@ export default function AddPaymentMethodScreen() {
 
       const data: any = {
         type: paymentType,
-        ...buildPayload(),
         enabled: isActive,
         feeAmount: processingFee ? Number(processingFee) : undefined,
       };
 
       // Add type-specific fields
       if (paymentType === 'BANK_TRANSFER') {
-        data.bankName = bankName.trim();
-        data.bankNameAr = bankNameAr.trim();
-        data.accountHolderName = accountHolderName.trim();
-        data.accountHolderNameAr = accountHolderNameAr.trim();
+        // Add bilingual fields from dynamic form
+        const bilingualFields = buildPayload();
+        Object.assign(data, bilingualFields);
+
+        // Add non-bilingual fields
         data.accountNumber = accountNumber.trim();
         data.iban = iban.trim();
         data.swiftCode = swiftCode.trim();
-        data.branch = branch.trim();
-        data.branchAr = branchAr.trim();
         data.requireReceipt = requireReceipt;
       } else if (paymentType === 'EWALLET') {
-        data.walletProvider = walletProvider.trim();
-        data.walletProviderAr = walletProviderAr.trim();
+        // Add bilingual fields from dynamic form
+        const bilingualFields = buildPayload();
+        Object.assign(data, bilingualFields);
+
+        // Add non-bilingual fields
         data.walletNumber = walletNumber.trim();
-        data.walletAccountName = walletAccountName.trim();
-        data.walletAccountNameAr = walletAccountNameAr.trim();
         data.qrCodeUrl = qrCodeUrl.trim();
         data.paymentLink = paymentLink.trim();
         data.requireReceipt = requireReceipt;
+      } else if (paymentType === 'PAYPAL') {
+        data.paypalEmail = paypalEmail.trim();
+        data.paypalMerchantId = paypalMerchantId.trim();
+      } else if (paymentType === 'STRIPE') {
+        data.stripePublishableKey = stripePublishableKey.trim();
+        data.stripeSecretKey = stripeSecretKey.trim();
       }
 
       await createPaymentMethod(data);
@@ -264,50 +258,6 @@ export default function AddPaymentMethodScreen() {
               </VStack>
             </VStack>
 
-            <VStack
-                space="md"
-                bg="$surfaceLight"
-                $dark-bg="$surfaceDark"
-                borderRadius="$2xl"
-                p="$4"
-              >
-                {/* Dynamic Name Fields */}
-                <DynamicLanguageFields
-                  fieldName="name"
-                  formData={formData}
-                  setFormData={setFormData}
-                  placeholder={t('payment_method_name_placeholder')}
-                />
-
-                {/* Dynamic Description Fields */}
-                <DynamicLanguageFields
-                  fieldName="description"
-                  formData={formData}
-                  setFormData={setFormData}
-                  placeholder={t('payment_method_description_placeholder')}
-                  multiline
-                  minHeight={80}
-                />
-              </VStack>
-
-            <VStack
-                space="md"
-                bg="$surfaceLight"
-                $dark-bg="$surfaceDark"
-                borderRadius="$2xl"
-                p="$4"
-              >
-                {/* Dynamic Instructions Fields */}
-                <DynamicLanguageFields
-                  fieldName="instructions"
-                  formData={formData}
-                  setFormData={setFormData}
-                  placeholder={t('payment_instructions_placeholder')}
-                  multiline
-                  minHeight={100}
-                />
-              </VStack>
-
             {/* Bank Transfer Fields */}
             {paymentType === 'BANK_TRANSFER' && (
               <>
@@ -318,121 +268,21 @@ export default function AddPaymentMethodScreen() {
                   borderRadius="$2xl"
                   p="$4"
                 >
-                  {/* Bank Name */}
-                  <VStack space="xs">
-                    <Text
-                      fontSize="$sm"
-                      fontWeight="$medium"
-                      color="$textLight"
-                      $dark-color="$textDark"
-                      textAlign={isRTL ? 'right' : 'left'}
-                    >
-                      {t('bank_name')}
-                    </Text>
-                    <Input
-                      borderRadius="$xl"
-                      borderColor="$borderLight"
-                      $dark-borderColor="$borderDark"
-                      bg="$backgroundLight"
-                      $dark-bg="$backgroundDark"
-                    >
-                      <InputField
-                        value={bankName}
-                        onChangeText={setBankName}
-                        placeholder="Bank Name"
-                        color="$textLight"
-                        $dark-color="$textDark"
-                        textAlign={isRTL ? 'right' : 'left'}
-                      />
-                    </Input>
-                  </VStack>
+                  {/* Bank Name - Dynamic */}
+                  <DynamicLanguageFields
+                    fieldName="bankName"
+                    formData={formData}
+                    setFormData={setFormData}
+                    placeholder={isRTL ? "مثال: البنك المركزي" : "e.g., Central Bank"}
+                  />
 
-                  {/* Bank Name Arabic */}
-                  <VStack space="xs">
-                    <Text
-                      fontSize="$sm"
-                      fontWeight="$medium"
-                      color="$textLight"
-                      $dark-color="$textDark"
-                      textAlign={isRTL ? 'right' : 'left'}
-                    >
-                      {t('bank_name')} (العربية)
-                    </Text>
-                    <Input
-                      borderRadius="$xl"
-                      borderColor="$borderLight"
-                      $dark-borderColor="$borderDark"
-                      bg="$backgroundLight"
-                      $dark-bg="$backgroundDark"
-                    >
-                      <InputField
-                        value={bankNameAr}
-                        onChangeText={setBankNameAr}
-                        placeholder="اسم البنك"
-                        color="$textLight"
-                        $dark-color="$textDark"
-                        textAlign="right"
-                      />
-                    </Input>
-                  </VStack>
-
-                  {/* Account Holder Name */}
-                  <VStack space="xs">
-                    <Text
-                      fontSize="$sm"
-                      fontWeight="$medium"
-                      color="$textLight"
-                      $dark-color="$textDark"
-                      textAlign={isRTL ? 'right' : 'left'}
-                    >
-                      {t('account_holder_name')}
-                    </Text>
-                    <Input
-                      borderRadius="$xl"
-                      borderColor="$borderLight"
-                      $dark-borderColor="$borderDark"
-                      bg="$backgroundLight"
-                      $dark-bg="$backgroundDark"
-                    >
-                      <InputField
-                        value={accountHolderName}
-                        onChangeText={setAccountHolderName}
-                        placeholder="Account Holder Name"
-                        color="$textLight"
-                        $dark-color="$textDark"
-                        textAlign={isRTL ? 'right' : 'left'}
-                      />
-                    </Input>
-                  </VStack>
-
-                  {/* Account Holder Name Arabic */}
-                  <VStack space="xs">
-                    <Text
-                      fontSize="$sm"
-                      fontWeight="$medium"
-                      color="$textLight"
-                      $dark-color="$textDark"
-                      textAlign={isRTL ? 'right' : 'left'}
-                    >
-                      {t('account_holder_name')} (العربية)
-                    </Text>
-                    <Input
-                      borderRadius="$xl"
-                      borderColor="$borderLight"
-                      $dark-borderColor="$borderDark"
-                      bg="$backgroundLight"
-                      $dark-bg="$backgroundDark"
-                    >
-                      <InputField
-                        value={accountHolderNameAr}
-                        onChangeText={setAccountHolderNameAr}
-                        placeholder="اسم صاحب الحساب"
-                        color="$textLight"
-                        $dark-color="$textDark"
-                        textAlign="right"
-                      />
-                    </Input>
-                  </VStack>
+                  {/* Account Holder Name - Dynamic */}
+                  <DynamicLanguageFields
+                    fieldName="accountHolderName"
+                    formData={formData}
+                    setFormData={setFormData}
+                    placeholder={isRTL ? "مثال: أحمد محمد" : "e.g., Ahmed Mohammed"}
+                  />
 
                   {/* Account Number */}
                   <VStack space="xs">
@@ -521,63 +371,13 @@ export default function AddPaymentMethodScreen() {
                     </Input>
                   </VStack>
 
-                  {/* Branch */}
-                  <VStack space="xs">
-                    <Text
-                      fontSize="$sm"
-                      fontWeight="$medium"
-                      color="$textLight"
-                      $dark-color="$textDark"
-                      textAlign={isRTL ? 'right' : 'left'}
-                    >
-                      {t('branch')}
-                    </Text>
-                    <Input
-                      borderRadius="$xl"
-                      borderColor="$borderLight"
-                      $dark-borderColor="$borderDark"
-                      bg="$backgroundLight"
-                      $dark-bg="$backgroundDark"
-                    >
-                      <InputField
-                        value={branch}
-                        onChangeText={setBranch}
-                        placeholder="Branch Name"
-                        color="$textLight"
-                        $dark-color="$textDark"
-                        textAlign={isRTL ? 'right' : 'left'}
-                      />
-                    </Input>
-                  </VStack>
-
-                  {/* Branch Arabic */}
-                  <VStack space="xs">
-                    <Text
-                      fontSize="$sm"
-                      fontWeight="$medium"
-                      color="$textLight"
-                      $dark-color="$textDark"
-                      textAlign={isRTL ? 'right' : 'left'}
-                    >
-                      {t('branch')} (العربية)
-                    </Text>
-                    <Input
-                      borderRadius="$xl"
-                      borderColor="$borderLight"
-                      $dark-borderColor="$borderDark"
-                      bg="$backgroundLight"
-                      $dark-bg="$backgroundDark"
-                    >
-                      <InputField
-                        value={branchAr}
-                        onChangeText={setBranchAr}
-                        placeholder="اسم الفرع"
-                        color="$textLight"
-                        $dark-color="$textDark"
-                        textAlign="right"
-                      />
-                    </Input>
-                  </VStack>
+                  {/* Branch - Dynamic */}
+                  <DynamicLanguageFields
+                    fieldName="branch"
+                    formData={formData}
+                    setFormData={setFormData}
+                    placeholder={isRTL ? "مثال: الفرع الرئيسي" : "e.g., Main Branch"}
+                  />
 
                   {/* Require Receipt */}
                   <HStack
@@ -624,63 +424,13 @@ export default function AddPaymentMethodScreen() {
                   borderRadius="$2xl"
                   p="$4"
                 >
-                  {/* Wallet Provider */}
-                  <VStack space="xs">
-                    <Text
-                      fontSize="$sm"
-                      fontWeight="$medium"
-                      color="$textLight"
-                      $dark-color="$textDark"
-                      textAlign={isRTL ? 'right' : 'left'}
-                    >
-                      {t('wallet_provider')}
-                    </Text>
-                    <Input
-                      borderRadius="$xl"
-                      borderColor="$borderLight"
-                      $dark-borderColor="$borderDark"
-                      bg="$backgroundLight"
-                      $dark-bg="$backgroundDark"
-                    >
-                      <InputField
-                        value={walletProvider}
-                        onChangeText={setWalletProvider}
-                        placeholder="e.g., Zain Cash, Fastpay"
-                        color="$textLight"
-                        $dark-color="$textDark"
-                        textAlign={isRTL ? 'right' : 'left'}
-                      />
-                    </Input>
-                  </VStack>
-
-                  {/* Wallet Provider Arabic */}
-                  <VStack space="xs">
-                    <Text
-                      fontSize="$sm"
-                      fontWeight="$medium"
-                      color="$textLight"
-                      $dark-color="$textDark"
-                      textAlign={isRTL ? 'right' : 'left'}
-                    >
-                      {t('wallet_provider')} (العربية)
-                    </Text>
-                    <Input
-                      borderRadius="$xl"
-                      borderColor="$borderLight"
-                      $dark-borderColor="$borderDark"
-                      bg="$backgroundLight"
-                      $dark-bg="$backgroundDark"
-                    >
-                      <InputField
-                        value={walletProviderAr}
-                        onChangeText={setWalletProviderAr}
-                        placeholder="مثال: زين كاش، فاست باي"
-                        color="$textLight"
-                        $dark-color="$textDark"
-                        textAlign="right"
-                      />
-                    </Input>
-                  </VStack>
+                  {/* Wallet Provider - Dynamic */}
+                  <DynamicLanguageFields
+                    fieldName="walletProvider"
+                    formData={formData}
+                    setFormData={setFormData}
+                    placeholder={isRTL ? "مثال: زين كاش، فاست باي" : "e.g., Zain Cash, Fastpay"}
+                  />
 
                   {/* Wallet Number */}
                   <VStack space="xs">
@@ -711,63 +461,13 @@ export default function AddPaymentMethodScreen() {
                     </Input>
                   </VStack>
 
-                  {/* Wallet Account Name */}
-                  <VStack space="xs">
-                    <Text
-                      fontSize="$sm"
-                      fontWeight="$medium"
-                      color="$textLight"
-                      $dark-color="$textDark"
-                      textAlign={isRTL ? 'right' : 'left'}
-                    >
-                      {t('wallet_account_name')}
-                    </Text>
-                    <Input
-                      borderRadius="$xl"
-                      borderColor="$borderLight"
-                      $dark-borderColor="$borderDark"
-                      bg="$backgroundLight"
-                      $dark-bg="$backgroundDark"
-                    >
-                      <InputField
-                        value={walletAccountName}
-                        onChangeText={setWalletAccountName}
-                        placeholder="Account Name"
-                        color="$textLight"
-                        $dark-color="$textDark"
-                        textAlign={isRTL ? 'right' : 'left'}
-                      />
-                    </Input>
-                  </VStack>
-
-                  {/* Wallet Account Name Arabic */}
-                  <VStack space="xs">
-                    <Text
-                      fontSize="$sm"
-                      fontWeight="$medium"
-                      color="$textLight"
-                      $dark-color="$textDark"
-                      textAlign={isRTL ? 'right' : 'left'}
-                    >
-                      {t('wallet_account_name')} (العربية)
-                    </Text>
-                    <Input
-                      borderRadius="$xl"
-                      borderColor="$borderLight"
-                      $dark-borderColor="$borderDark"
-                      bg="$backgroundLight"
-                      $dark-bg="$backgroundDark"
-                    >
-                      <InputField
-                        value={walletAccountNameAr}
-                        onChangeText={setWalletAccountNameAr}
-                        placeholder="اسم الحساب"
-                        color="$textLight"
-                        $dark-color="$textDark"
-                        textAlign="right"
-                      />
-                    </Input>
-                  </VStack>
+                  {/* Wallet Account Name - Dynamic */}
+                  <DynamicLanguageFields
+                    fieldName="walletAccountName"
+                    formData={formData}
+                    setFormData={setFormData}
+                    placeholder={isRTL ? "مثال: أحمد محمد" : "e.g., Ahmed Mohammed"}
+                  />
 
                   {/* QR Code URL */}
                   <VStack space="xs">
@@ -858,6 +558,153 @@ export default function AddPaymentMethodScreen() {
                       ios_backgroundColor={isDark ? 'rgba(255, 255, 255, 0.1)' : '#E5E5EA'}
                     />
                   </HStack>
+                </VStack>
+              </>
+            )}
+
+            {/* PayPal Fields */}
+            {paymentType === 'PAYPAL' && (
+              <>
+                <VStack
+                  space="md"
+                  bg="$surfaceLight"
+                  $dark-bg="$surfaceDark"
+                  borderRadius="$2xl"
+                  p="$4"
+                >
+                  {/* PayPal Email */}
+                  <VStack space="xs">
+                    <Text
+                      fontSize="$sm"
+                      fontWeight="$medium"
+                      color="$textLight"
+                      $dark-color="$textDark"
+                      textAlign={isRTL ? 'right' : 'left'}
+                    >
+                      {t('paypal_email')} *
+                    </Text>
+                    <Input
+                      borderRadius="$xl"
+                      borderColor="$borderLight"
+                      $dark-borderColor="$borderDark"
+                      bg="$backgroundLight"
+                      $dark-bg="$backgroundDark"
+                    >
+                      <InputField
+                        value={paypalEmail}
+                        onChangeText={setPaypalEmail}
+                        placeholder="merchant@example.com"
+                        keyboardType="email-address"
+                        autoCapitalize="none"
+                        color="$textLight"
+                        $dark-color="$textDark"
+                        textAlign={isRTL ? 'right' : 'left'}
+                      />
+                    </Input>
+                  </VStack>
+
+                  {/* PayPal Merchant ID */}
+                  <VStack space="xs">
+                    <Text
+                      fontSize="$sm"
+                      fontWeight="$medium"
+                      color="$textLight"
+                      $dark-color="$textDark"
+                      textAlign={isRTL ? 'right' : 'left'}
+                    >
+                      {t('paypal_merchant_id')}
+                    </Text>
+                    <Input
+                      borderRadius="$xl"
+                      borderColor="$borderLight"
+                      $dark-borderColor="$borderDark"
+                      bg="$backgroundLight"
+                      $dark-bg="$backgroundDark"
+                    >
+                      <InputField
+                        value={paypalMerchantId}
+                        onChangeText={setPaypalMerchantId}
+                        placeholder="XXXXXXXXXX"
+                        color="$textLight"
+                        $dark-color="$textDark"
+                        textAlign={isRTL ? 'right' : 'left'}
+                      />
+                    </Input>
+                  </VStack>
+                </VStack>
+              </>
+            )}
+
+            {/* Stripe Fields */}
+            {paymentType === 'STRIPE' && (
+              <>
+                <VStack
+                  space="md"
+                  bg="$surfaceLight"
+                  $dark-bg="$surfaceDark"
+                  borderRadius="$2xl"
+                  p="$4"
+                >
+                  {/* Stripe Publishable Key */}
+                  <VStack space="xs">
+                    <Text
+                      fontSize="$sm"
+                      fontWeight="$medium"
+                      color="$textLight"
+                      $dark-color="$textDark"
+                      textAlign={isRTL ? 'right' : 'left'}
+                    >
+                      {t('stripe_publishable_key')} *
+                    </Text>
+                    <Input
+                      borderRadius="$xl"
+                      borderColor="$borderLight"
+                      $dark-borderColor="$borderDark"
+                      bg="$backgroundLight"
+                      $dark-bg="$backgroundDark"
+                    >
+                      <InputField
+                        value={stripePublishableKey}
+                        onChangeText={setStripePublishableKey}
+                        placeholder="pk_live_..."
+                        autoCapitalize="none"
+                        color="$textLight"
+                        $dark-color="$textDark"
+                        textAlign={isRTL ? 'right' : 'left'}
+                      />
+                    </Input>
+                  </VStack>
+
+                  {/* Stripe Secret Key */}
+                  <VStack space="xs">
+                    <Text
+                      fontSize="$sm"
+                      fontWeight="$medium"
+                      color="$textLight"
+                      $dark-color="$textDark"
+                      textAlign={isRTL ? 'right' : 'left'}
+                    >
+                      {t('stripe_secret_key')} *
+                    </Text>
+                    <Input
+                      borderRadius="$xl"
+                      borderColor="$borderLight"
+                      $dark-borderColor="$borderDark"
+                      bg="$backgroundLight"
+                      $dark-bg="$backgroundDark"
+                    >
+                      <InputField
+                        value={stripeSecretKey}
+                        onChangeText={setStripeSecretKey}
+                        placeholder="sk_live_..."
+                        autoCapitalize="none"
+                        secureTextEntry
+                        color="$textLight"
+                        $dark-color="$textDark"
+                        textAlign={isRTL ? 'right' : 'left'}
+                      />
+                    </Input>
+                  </VStack>
                 </VStack>
               </>
             )}

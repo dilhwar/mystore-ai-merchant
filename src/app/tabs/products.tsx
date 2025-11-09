@@ -22,8 +22,6 @@ import {
   InputIcon,
   Card,
   Image,
-  Fab,
-  FabIcon,
   Menu,
   MenuItem,
   MenuItemLabel,
@@ -39,6 +37,7 @@ import {
   ButtonText,
   ButtonIcon,
   Icon,
+  Spinner,
 } from '@gluestack-ui/themed';
 import {
   Search,
@@ -101,7 +100,7 @@ export default function ProductsNewScreen() {
   const { t, i18n } = useTranslation('products');
   const router = useRouter();
   const { colors, isDark } = useTheme();
-  const { storeCurrency } = useAuth();
+  const { storeCurrency, storeLanguages } = useAuth();
 
   const [products, setProducts] = useState<Product[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
@@ -196,7 +195,12 @@ export default function ProductsNewScreen() {
       const data = await getProducts(params);
 
       if (data.products.length > 0) {
-        setProducts((prev) => [...prev, ...data.products]);
+        setProducts((prev) => {
+          // Filter out duplicates by checking if product.id already exists
+          const existingIds = new Set(prev.map(p => p.id));
+          const newProducts = data.products.filter(p => !existingIds.has(p.id));
+          return [...prev, ...newProducts];
+        });
         setCurrentPage(nextPage);
         setHasMore(data.products.length >= ITEMS_PER_PAGE);
         productLogger.loadMoreSuccess(nextPage, data.products.length, {
@@ -240,7 +244,7 @@ export default function ProductsNewScreen() {
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase().trim();
       filtered = filtered.filter((product) => {
-        const productName = getProductName(product, currentLanguage).toLowerCase();
+        const productName = getProductName(product, currentLanguage, storeLanguages).toLowerCase();
         return productName.includes(query);
       });
       productLogger.searchResults(query, filtered.length, {
@@ -251,9 +255,9 @@ export default function ProductsNewScreen() {
 
     // Filter by active status
     if (filterActive === 'active') {
-      filtered = filtered.filter((p) => p.isActive);
+      filtered = filtered.filter((p) => p.enabled);
     } else if (filterActive === 'inactive') {
-      filtered = filtered.filter((p) => !p.isActive);
+      filtered = filtered.filter((p) => !p.enabled);
     }
 
     // Filter by category
@@ -294,8 +298,8 @@ export default function ProductsNewScreen() {
 
       switch (sortBy) {
         case 'name':
-          const nameA = getProductName(a, currentLanguage).toLowerCase();
-          const nameB = getProductName(b, currentLanguage).toLowerCase();
+          const nameA = getProductName(a, currentLanguage, storeLanguages).toLowerCase();
+          const nameB = getProductName(b, currentLanguage, storeLanguages).toLowerCase();
           comparison = nameA.localeCompare(nameB);
           break;
 
@@ -352,15 +356,51 @@ export default function ProductsNewScreen() {
     setTimeout(() => {
       RNAlert.alert(
         t('delete_product'),
-        t('delete_product_confirm', { name: selectedProduct ? getProductName(selectedProduct, currentLanguage) : '' }),
+        t('delete_product_confirm', { name: selectedProduct ? getProductName(selectedProduct, currentLanguage, storeLanguages) : '' }),
         [
           { text: t('cancel'), style: 'cancel' },
           {
             text: t('delete'),
             style: 'destructive',
-            onPress: () => {
-              haptics.success();
-              // Implement delete
+            onPress: async () => {
+              if (!selectedProduct) return;
+
+              try {
+                haptics.light();
+                productLogger.delete(selectedProduct.id, {
+                  name: getProductName(selectedProduct, currentLanguage, storeLanguages),
+                  language: currentLanguage
+                });
+
+                // Delete product via API
+                const { deleteProduct } = await import('@/services/products.service');
+                await deleteProduct(selectedProduct.id);
+
+                // Remove from local state
+                setProducts(prev => prev.filter(p => p.id !== selectedProduct.id));
+
+                haptics.success();
+                productLogger.deleteSuccess(selectedProduct.id, {
+                  name: getProductName(selectedProduct, currentLanguage, storeLanguages),
+                  language: currentLanguage
+                });
+
+                RNAlert.alert(
+                  t('success'),
+                  t('product_deleted_successfully')
+                );
+              } catch (error: any) {
+                haptics.error();
+                productLogger.deleteError(selectedProduct.id, error, {
+                  name: getProductName(selectedProduct, currentLanguage, storeLanguages),
+                  language: currentLanguage
+                });
+
+                RNAlert.alert(
+                  t('error'),
+                  error.message || t('failed_to_delete_product')
+                );
+              }
             },
           },
         ]
@@ -413,13 +453,34 @@ export default function ProductsNewScreen() {
     <Box flex={1} bg="$backgroundLight" $dark-bg="$backgroundDark">
       {/* Header */}
       <Box px="$4" pt="$12" pb="$4">
-        <HStack alignItems="center" space="sm" mb="$4">
-          <Heading size="xl" color="$textLight" $dark-color="$textDark" style={{ writingDirection: currentLanguage === 'ar' ? 'rtl' : 'ltr' }}>
-            {t('products')}
-          </Heading>
-          <Badge action="muted" variant="solid" size="sm" borderRadius="$full">
-            <BadgeText fontSize="$xs" fontWeight="$bold">{products.length}</BadgeText>
-          </Badge>
+        <HStack alignItems="center" justifyContent="space-between" mb="$4">
+          <HStack alignItems="center" space="sm">
+            <Heading size="xl" color="$textLight" $dark-color="$textDark" style={{ writingDirection: currentLanguage === 'ar' ? 'rtl' : 'ltr' }}>
+              {t('products')}
+            </Heading>
+            <Badge action="muted" variant="solid" size="sm" borderRadius="$full">
+              <BadgeText fontSize="$xs" fontWeight="$bold">{products.length}</BadgeText>
+            </Badge>
+          </HStack>
+
+          {/* Add Product Button */}
+          <Pressable
+            onPress={() => {
+              haptics.medium();
+              router.push('/products/add');
+            }}
+            w={36}
+            h={36}
+            borderRadius="$lg"
+            bg="$primary500"
+            alignItems="center"
+            justifyContent="center"
+            $active-opacity={0.7}
+            alignSelf="flex-end"
+            mb={-2}
+          >
+            <Plus size={18} color="#FFFFFF" strokeWidth={2.5} />
+          </Pressable>
         </HStack>
 
         {/* Search Bar and Filter Row */}
@@ -530,7 +591,7 @@ export default function ProductsNewScreen() {
         ) : (
           <VStack pb="$24" px="$4" space="xs">
             {filteredProducts.map((product, index) => {
-              const productName = getProductName(product, currentLanguage);
+              const productName = getProductName(product, currentLanguage, storeLanguages);
               const productImage = getProductImage(product);
               const { price, originalPrice } = getProductPrice(product);
               const stockStatusKey = getStockStatusKey(product);
@@ -607,21 +668,6 @@ export default function ProductsNewScreen() {
         )}
       </ScrollView>
 
-      {/* FAB - Add Product */}
-      <Fab
-        size="lg"
-        placement="bottom right"
-        bg="$primary500"
-        onPress={() => {
-          haptics.medium();
-          router.push('/products/add');
-        }}
-        $hover-bg="$primary600"
-        $active-bg="$primary700"
-      >
-        <FabIcon as={Plus} size="xl" color="$white" />
-      </Fab>
-
       {/* Action Sheet */}
       <Actionsheet isOpen={showActionSheet} onClose={() => setShowActionSheet(false)} zIndex={999}>
         <ActionsheetBackdrop />
@@ -634,7 +680,7 @@ export default function ProductsNewScreen() {
             {selectedProduct && (
               <VStack space="xs" mb="$2">
                 <Heading size="lg" color="$textLight" $dark-color="$textDark">
-                  {getProductName(selectedProduct, currentLanguage)}
+                  {getProductName(selectedProduct, currentLanguage, storeLanguages)}
                 </Heading>
                 <Text fontSize="$sm" color="$textSecondaryLight" $dark-color="$textSecondaryDark">
                   {formatCurrency(getProductPrice(selectedProduct).price, storeCurrency, currentLanguage)}

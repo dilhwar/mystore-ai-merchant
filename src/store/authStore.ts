@@ -55,10 +55,10 @@ export const useAuthStore = create<AuthState>()(
       isLoading: false,
       error: null,
 
-      // Store settings defaults
-      storeLanguages: ['ar', 'en'], // Default languages
-      defaultLanguage: 'ar',
-      storeCurrency: 'IQD',
+      // Store settings defaults (will be loaded from API)
+      storeLanguages: ['en', 'ar'], // Temporary defaults until loaded from API
+      defaultLanguage: 'en', // Temporary default until loaded from API
+      storeCurrency: 'IQD', // Temporary default until loaded from API
 
       setUser: (user: UserData) => {
         set({
@@ -150,6 +150,36 @@ export const useAuthStore = create<AuthState>()(
               error: null,
             });
             console.log('✅ AuthStore: State updated successfully');
+
+            // Load store settings after successful login
+            try {
+              const { apiGet } = await import('@/services/api');
+              const storeResponse = await apiGet<any>('/stores');
+              const storeData = Array.isArray(storeResponse.data.data)
+                ? storeResponse.data.data[0]
+                : storeResponse.data.data;
+
+              if (storeData?.settings) {
+                // Parse languages array
+                let languages = storeData.settings.languages || ['en', 'ar'];
+                if (typeof languages === 'string') {
+                  try {
+                    languages = JSON.parse(languages);
+                  } catch (e) {
+                    languages = ['en', 'ar'];
+                  }
+                }
+
+                set({
+                  storeLanguages: languages,
+                  defaultLanguage: storeData.settings.language || languages[0] || 'en',
+                  storeCurrency: storeData.settings.currency || 'IQD',
+                });
+                console.log('✅ AuthStore: Store settings loaded:', { languages, defaultLanguage: storeData.settings.language });
+              }
+            } catch (error) {
+              console.log('⚠️ AuthStore: Could not load store settings:', error);
+            }
           } else {
             console.error('❌ AuthStore: Response not successful or no data');
             throw new Error(response.message || 'Login failed');
@@ -201,6 +231,35 @@ export const useAuthStore = create<AuthState>()(
               isLoading: false,
               error: null,
             });
+
+            // Load store settings after successful registration
+            try {
+              const { apiGet } = await import('@/services/api');
+              const storeResponse = await apiGet<any>('/stores');
+              const storeData = Array.isArray(storeResponse.data.data)
+                ? storeResponse.data.data[0]
+                : storeResponse.data.data;
+
+              if (storeData?.settings) {
+                // Parse languages array
+                let languages = storeData.settings.languages || ['en', 'ar'];
+                if (typeof languages === 'string') {
+                  try {
+                    languages = JSON.parse(languages);
+                  } catch (e) {
+                    languages = ['en', 'ar'];
+                  }
+                }
+
+                set({
+                  storeLanguages: languages,
+                  defaultLanguage: storeData.settings.language || languages[0] || 'en',
+                  storeCurrency: storeData.settings.currency || 'IQD',
+                });
+              }
+            } catch (error) {
+              console.log('⚠️ AuthStore: Could not load store settings after registration:', error);
+            }
           } else {
             throw new Error(response.message || 'Registration failed');
           }
@@ -274,6 +333,36 @@ export const useAuthStore = create<AuthState>()(
               }
             } catch (error) {
               // Silently ignore - user data will be populated on next login
+            }
+
+            // Load store settings (languages, currency)
+            try {
+              const { apiGet } = await import('@/services/api');
+              const storeResponse = await apiGet<any>('/stores');
+              const storeData = Array.isArray(storeResponse.data.data)
+                ? storeResponse.data.data[0]
+                : storeResponse.data.data;
+
+              if (storeData?.settings) {
+                // Parse languages array
+                let languages = storeData.settings.languages || ['en', 'ar'];
+                if (typeof languages === 'string') {
+                  try {
+                    languages = JSON.parse(languages);
+                  } catch (e) {
+                    languages = ['en', 'ar'];
+                  }
+                }
+
+                set({
+                  storeLanguages: languages,
+                  defaultLanguage: storeData.settings.language || languages[0] || 'en',
+                  storeCurrency: storeData.settings.currency || 'IQD',
+                });
+              }
+            } catch (error) {
+              // Silently ignore - will use defaults
+              console.log('Could not load store settings:', error);
             }
           } else {
             set({

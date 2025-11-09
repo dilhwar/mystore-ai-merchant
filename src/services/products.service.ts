@@ -45,7 +45,7 @@ export interface Product {
   currency?: string;
   sku?: string;
   quantity: number;
-  isActive: boolean;
+  enabled: boolean;
   featured: boolean;
   displayOrder: number;
   createdAt: string;
@@ -111,8 +111,16 @@ export const getProducts = async (params: GetProductsParams = {}): Promise<Produ
 
 /**
  * Get product name based on current language
+ * Uses dynamic language system - supports multiple languages
  */
-export const getProductName = (product: Product, language: string): string => {
+export const getProductName = (product: Product, language: string, storeLanguages?: string[]): string => {
+  // Use dynamic language system if storeLanguages provided
+  if (storeLanguages && storeLanguages.length > 0) {
+    const { getTranslatedName } = require('@/utils/language');
+    return getTranslatedName(product, storeLanguages, language);
+  }
+
+  // Fallback to legacy two-language system (for backward compatibility)
   if (language === 'ar' && product.nameAr) {
     return product.nameAr;
   }
@@ -179,6 +187,20 @@ export const getStockStatusKey = (product: Product): string => {
 };
 
 /**
+ * Variant interface
+ */
+export interface ProductVariantInput {
+  name: string;
+  nameAr?: string;
+  sku?: string;
+  price?: number;
+  quantity: number;
+  attributes: Record<string, string>;
+  isActive?: boolean;
+  image?: string;
+}
+
+/**
  * Create product data interface
  */
 export interface CreateProductData {
@@ -190,9 +212,11 @@ export interface CreateProductData {
   sku?: string;
   categoryId?: string;
   quantity: number;
-  isActive?: boolean;
+  enabled?: boolean;
   featured?: boolean;
   images?: any[];
+  variants?: ProductVariantInput[];
+  variantsRequired?: boolean;
 }
 
 /**
@@ -200,39 +224,54 @@ export interface CreateProductData {
  */
 export const createProduct = async (data: CreateProductData): Promise<Product> => {
   try {
-    const formData = new FormData();
+    console.log('Creating product with data:', JSON.stringify(data, null, 2));
 
-    // Add basic fields
-    formData.append('name', data.name);
-    if (data.nameAr) formData.append('nameAr', data.nameAr);
-    if (data.description) formData.append('description', data.description);
-    if (data.descriptionAr) formData.append('descriptionAr', data.descriptionAr);
-    formData.append('price', data.price.toString());
-    if (data.sku) formData.append('sku', data.sku);
-    if (data.categoryId) formData.append('categoryId', data.categoryId);
-    formData.append('quantity', data.quantity.toString());
-    formData.append('isActive', data.isActive !== false ? 'true' : 'false');
-    formData.append('featured', data.featured ? 'true' : 'false');
-    formData.append('trackInventory', 'true');
-    formData.append('allowOutOfStock', 'false');
-    formData.append('variantsRequired', 'false');
+    // Prepare product data for React Native app
+    // React Native sends pre-uploaded image URLs as an array
+    const productData: any = {
+      name: data.name,
+      description: data.description || '',
+      price: data.price,
+      quantity: data.quantity,
+      isActive: data.enabled !== false,
+      featured: data.featured || false,
+      trackInventory: true,
+      allowOutOfStock: false,
+      variantsRequired: data.variantsRequired || false,
+    };
 
-    // Add images if provided
+    // Add optional fields
+    if (data.nameAr) productData.nameAr = data.nameAr;
+    if (data.descriptionAr) productData.descriptionAr = data.descriptionAr;
+    if (data.sku) productData.sku = data.sku;
+    if (data.categoryId) productData.categoryId = data.categoryId;
+
+    // Add images array (pre-uploaded URLs from S3)
     if (data.images && data.images.length > 0) {
-      data.images.forEach((image: any) => {
-        formData.append('images', image);
-      });
+      productData.images = data.images;
+      console.log('📸 Images being sent:', productData.images);
     }
 
-    const response = await apiPost<{ message: string; data: Product }>('/products', formData, {
+    // Add variants array
+    if (data.variants && data.variants.length > 0) {
+      productData.variants = data.variants;
+    }
+
+    console.log('Sending product data as JSON');
+
+    const response = await apiPost<{ message: string; data: Product }>('/products', productData, {
       headers: {
-        'Content-Type': 'multipart/form-data',
+        'Content-Type': 'application/json',
       },
     });
 
     return response.data.data;
   } catch (error: any) {
     console.error('Create product error:', error.message);
+    console.error('Error response:', error.response?.data);
+    console.error('Error status:', error.response?.status);
+    console.error('Error headers:', error.response?.headers);
+    console.error('Full error:', JSON.stringify(error, null, 2));
     throw error;
   }
 };
@@ -270,33 +309,32 @@ export const updateProduct = async (
   data: UpdateProductData
 ): Promise<Product> => {
   try {
-    const formData = new FormData();
+    const updateData: any = {};
 
     // Add fields to update (only if provided)
-    if (data.name !== undefined) formData.append('name', data.name);
-    if (data.nameAr !== undefined) formData.append('nameAr', data.nameAr || '');
-    if (data.description !== undefined) formData.append('description', data.description || '');
-    if (data.descriptionAr !== undefined) formData.append('descriptionAr', data.descriptionAr || '');
-    if (data.price !== undefined) formData.append('price', data.price.toString());
-    if (data.quantity !== undefined) formData.append('quantity', data.quantity.toString());
-    if (data.sku !== undefined) formData.append('sku', data.sku || '');
-    if (data.categoryId !== undefined) formData.append('categoryId', data.categoryId || '');
-    if (data.isActive !== undefined) formData.append('isActive', data.isActive.toString());
-    if (data.featured !== undefined) formData.append('featured', data.featured.toString());
+    if (data.name !== undefined) updateData.name = data.name;
+    if (data.nameAr !== undefined) updateData.nameAr = data.nameAr || '';
+    if (data.description !== undefined) updateData.description = data.description || '';
+    if (data.descriptionAr !== undefined) updateData.descriptionAr = data.descriptionAr || '';
+    if (data.price !== undefined) updateData.price = data.price;
+    if (data.quantity !== undefined) updateData.quantity = data.quantity;
+    if (data.sku !== undefined) updateData.sku = data.sku || '';
+    if (data.categoryId !== undefined) updateData.categoryId = data.categoryId || '';
+    if (data.enabled !== undefined) updateData.enabled = data.enabled;
+    if (data.featured !== undefined) updateData.featured = data.featured;
 
-    // Handle images if provided
+    // Handle images if provided (pre-uploaded URLs from S3)
     if (data.images && data.images.length > 0) {
-      data.images.forEach((image: any) => {
-        formData.append('images', image);
-      });
+      updateData.images = data.images;
+      console.log('📸 Images being sent for update:', data.images);
     }
 
     const response = await apiPut<{ message: string; data: Product }>(
       `/products/${id}`,
-      formData,
+      updateData,
       {
         headers: {
-          'Content-Type': 'multipart/form-data',
+          'Content-Type': 'application/json',
         },
       }
     );
@@ -321,16 +359,16 @@ export const deleteProduct = async (id: string): Promise<void> => {
 };
 
 /**
- * Toggle product active status
+ * Toggle product enabled status
  */
-export const toggleProductActive = async (
+export const toggleProductEnabled = async (
   id: string,
-  isActive: boolean
+  enabled: boolean
 ): Promise<Product> => {
   try {
-    const response = await apiPost<{ message: string; data: Product }>(
+    const response = await apiPut<{ message: string; data: Product }>(
       `/products/${id}`,
-      { isActive },
+      { enabled },
       {
         headers: {
           'Content-Type': 'application/json',
@@ -340,7 +378,7 @@ export const toggleProductActive = async (
 
     return response.data.data;
   } catch (error: any) {
-    console.error('Toggle product active error:', error.message);
+    console.error('Toggle product enabled error:', error.message);
     throw error;
   }
 };
